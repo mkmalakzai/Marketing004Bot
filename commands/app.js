@@ -196,15 +196,14 @@ if(action==="admin_provider"){
   var p=obj(key("provider",id));if(!p||p.deleted){Bot.runCommand("app admin_providers");return;}
   var masked=p.api_key?"••••••"+String(p.api_key).slice(-4):"—";
   var text="Name: "+p.name+"\nStatus: "+(p.active?"Enabled":"Disabled")+"\nAPI URL: "+p.api_url+"\nAPI Key: "+masked+"\nType: "+(p.type||"SMM API");
-  show("🔌 "+p.id,text,[row("🧪 Test Connection","admin_provider_test "+p.id),row("💰 Check Balance","admin_provider_balance "+p.id),row("📥 Fetch Services","admin_provider_services "+p.id),row(p.active?"⛔ Disable":"✅ Enable","admin_provider_toggle "+p.id),row("✏ Edit","admin_provider_edit "+p.id),row("🗑 Delete","admin_provider_delete "+p.id),row("◀ Providers","admin_providers")]);return;
+  show("🔌 "+p.id,text,[row("🧪 Test Connection","admin_provider_test "+p.id),row("💰 Check Balance","admin_provider_balance "+p.id),row("🔎 Add Service by ID","admin_provider_service_add "+p.id),row(p.active?"⛔ Disable":"✅ Enable","admin_provider_toggle "+p.id),row("✏ Edit","admin_provider_edit "+p.id),row("🗑 Delete","admin_provider_delete "+p.id),row("◀ Providers","admin_providers")]);return;
 }
 
-if(action==="admin_provider_test"||action==="admin_provider_balance"||action==="admin_provider_services"){
+if(action==="admin_provider_test"||action==="admin_provider_balance"){
   var p=obj(key("provider",id));if(!p||p.deleted){Bot.runCommand("app admin_providers");return;}
   if(!p.api_url||!p.api_key){show("⚠️ PROVIDER INCOMPLETE","API URL or API key is missing.",[row("✏ Edit","admin_provider_edit "+id)]);return;}
-  var apiAction=action==="admin_provider_services"?"services":"balance";
-  var body="key="+encodeURIComponent(p.api_key)+"&action="+encodeURIComponent(apiAction);
-  var commandName=action==="admin_provider_services"?"provider_services_result":"provider_balance_result";
+  var body="key="+encodeURIComponent(p.api_key)+"&action=balance";
+  var commandName="provider_balance_result";
   User.setProperty("t4_provider_request",JSON.stringify({provider:id,mode:action}),"string");
   HTTP.post({
     url:p.api_url,
@@ -213,8 +212,16 @@ if(action==="admin_provider_test"||action==="admin_provider_balance"||action==="
     error:"provider_api_error",
     headers:{"Content-Type":"application/x-www-form-urlencoded"}
   });
-  Bot.sendMessage(action==="admin_provider_services"?"⏳ Fetching services...":"⏳ Checking provider...");
+  Bot.sendMessage("⏳ Checking provider...");
   return;
+}
+
+
+if(action==="admin_provider_service_add"){
+  var p=obj(key("provider",id));if(!p||p.deleted){Bot.runCommand("app admin_providers");return;}
+  User.setProperty("t4_pending",JSON.stringify({kind:"admin_provider_service_id",ref:id}),"string");
+  Bot.sendInlineKeyboard([[{title:"✖ Cancel",command:"app admin_provider "+id}]],"🔎 Send the Followiz Service ID you want to use.\n\nExample: 1234");
+  Bot.runCommand("input",{waitForAnswer:true});return;
 }
 
 if(action==="admin_provider_toggle"){
