@@ -43,5 +43,5 @@ Bot.setProperty("t4_order_"+o.id,JSON.stringify(o),"string");
 
 Bot.sendInlineKeyboard(
   [[{title:"🛒 Open Order",command:"app admin_order "+o.id}]],
-  "✅ Provider status updated.\n\n"+o.id+" • "+s+(o.provider_remains?"\nRemains: "+o.provider_remains:"")
+  "✅ PROVIDER STATUS UPDATED\n\nOrder: "+o.id+"\nStatus: "+s+(o.provider_remains?"\nRemaining: "+o.provider_remains:"")+(o.provider_charge?"\nProvider charge: "+o.provider_charge:"")
 );
