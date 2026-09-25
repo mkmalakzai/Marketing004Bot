@@ -86,7 +86,7 @@ if(state.kind==="deposit_amount"){
   User.setProperty("t4_deposit_draft",JSON.stringify({method:m.id,amount:c}),"string");
   User.setProperty("t4_pending",JSON.stringify({kind:"deposit_proof"}),"string");
   Bot.sendInlineKeyboard([[{title:"🏠 Main Menu",command:"app home"}]],"📷 Send your payment screenshot as a Telegram photo now.");
-  Bot.handleNextCommand("input");return;
+  Bot.runCommand("input");return;
 }
 if(state.kind==="deposit_proof"){
   var d;try{d=JSON.parse(User.getProperty("t4_deposit_draft"));}catch(e){d=null;}
