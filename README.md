@@ -1,22 +1,24 @@
 # TPL-004 — Professional Marketing & Promotion Bot
 
-Bots.Business template for an all-in-one marketing service bot.
+## Important: GitHub does not automatically install the commands
 
-## Installed milestone
+These files are source code. Pushing to GitHub alone does not add them to a bot in Bots.Business.
 
-- `/start` initializes the user's basic account once.
-- `main_menu` presents inline navigation.
-- `my_account` shows the account and the single BOTBOX credit line.
-- Other menu routes explicitly say that the feature is being built.
+### Quick installation (manual)
 
-No orders, deposits, payments, SMM provider calls or fulfillment are active yet. Do not accept payments before those flows and admin review are implemented and tested.
+1. Open your **TPL-004 bot** in Bots.Business.
+2. Create a command named `/start`. Copy only the JavaScript from [commands/start.js](commands/start.js) into its BJS/code field and save.
+3. Create commands named `main_menu`, `my_account`, `services`, `my_orders`, `balance`, `offers`, `my_stats`, and `support`. Paste each matching `commands/<name>.js` file into its command's BJS/code field and save.
+4. Send `/start` to your Telegram bot to check the menu. Every inline button should open its named command.
 
-## Install in Bots.Business
+These `commands/*.js` files are individual scripts for manual installation. They have **not** been prepared or verified as a Bots.Business Git-import repository. Do not use **Sync → Import from Git rep** on a bot containing existing commands without first exporting/backing it up: importing can replace bot content.
 
-Create one command for each file in `commands/`. Use the filename without `.js` as the command name and paste in its JavaScript. Set `/start` as the entry command. Inline buttons refer to those command names.
+Bots.Business has a separate Git sync setup involving a repository and deploy key. It does not happen simply by linking GitHub to ChatGPT.
 
-## Architecture to implement next
+## Current milestone
 
-Admin-managed categories, services, packages; durable order records indexed by user and admin; USD wallet ledger and manual deposit review; manual fulfillment plus optional SMM API; offers, support and settings. Store provider credentials in admin configuration, never user properties. Validate prices and idempotency on the server side before accepting orders.
+`/start` initializes a basic account, `main_menu` shows navigation, and `my_account` has the only BOTBOX credit line. Other routes clearly indicate work in progress. Orders, balance payments, deposits and SMM fulfillment are **not enabled yet**.
+
+Planned: admin-managed catalog, durable order indexes, USD ledger with deposit review, manual fulfillment and optional provider API. Keep API keys in admin configuration, never user properties.
 
 Watermark: `Powered by BOTBOX • @BotboxOfficial` appears only on My Account.
