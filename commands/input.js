@@ -193,13 +193,19 @@ if(state.kind==="admin_add"||state.kind==="admin_edit"||state.kind==="admin_item
   }
   if(type==="srv"){
     if(step===0){stepAsk(1,"📁 Send existing Category ID, e.g. CAT-1");return;}
-    if(step===1){if(!read("cat_"+value.toUpperCase())){fail("Category not found.");return;}x.cat=value.toUpperCase();stepAsk(2,"🚀 Send service name.");return;}
+    if(step===1){
+      if(x.cat){if(!value||value.length>60){fail("Service name must be 1–60 characters.");return;}x.name=value;stepAsk(3,"📝 Send service description.");return;}
+      if(!read("cat_"+value.toUpperCase())){fail("Category not found.");return;}x.cat=value.toUpperCase();stepAsk(2,"🚀 Send service name.");return;
+    }
     if(step===2){if(!value||value.length>60){fail("Service name must be 1–60 characters.");return;}x.name=value;stepAsk(3,"📝 Send service description.");return;}
     if(!value||value.length>300){fail("Description must be 1–300 characters.");return;}x.description=value;finish();return;
   }
   if(type==="pkg"){
     if(step===0){stepAsk(1,"🚀 Send existing Service ID, e.g. SRV-1");return;}
-    if(step===1){if(!read("srv_"+value.toUpperCase())){fail("Service not found.");return;}x.srv=value.toUpperCase();stepAsk(2,"📦 Send package name.");return;}
+    if(step===1){
+      if(x.srv){if(!value||value.length>60){fail("Package name must be 1–60 characters.");return;}x.name=value;stepAsk(3,"💵 Send price in USD, e.g. 5.00");return;}
+      if(!read("srv_"+value.toUpperCase())){fail("Service not found.");return;}x.srv=value.toUpperCase();stepAsk(2,"📦 Send package name.");return;
+    }
     if(step===2){if(!value||value.length>60){fail("Package name must be 1–60 characters.");return;}x.name=value;stepAsk(3,"💵 Send price in USD, e.g. 5.00");return;}
     if(step===3){var pc=money(value);if(!pc){fail("Invalid price.");return;}x.price=pc;stepAsk(4,"⏱ Send delivery time, e.g. 1–24 hours.");return;}
     if(step===4){if(!value||value.length>100){fail("Delivery must be 1–100 characters.");return;}x.delivery=value;stepAsk(5,"🔗 What input must the user send? e.g. Post link");return;}
