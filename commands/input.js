@@ -27,6 +27,10 @@ function add(k,id){var a=list(k);a.unshift(id);save(k,a);}
 function next(type){var n=Number(get("seq_"+type,0))+1;put("seq_"+type,n);return type+"-"+n;}
 function fail(text){Bot.sendInlineKeyboard([[{title:"🏠 Main Menu",command:"app home"}]],"⚠️ "+text);}
 function money(s){if(!/^(0|[1-9][0-9]{0,5})(\.[0-9]{1,2})?$/.test(s))return null;var p=s.split(".");var v=Number(p[0])*100+Number(((p[1]||"")+"00").slice(0,2));return v>0?v:null;}
+function wallet(who){return Number(get("wallet_"+who,0));}
+function ledger(who,type,ref,delta){var a=list("ledger_"+who);a.unshift({at:new Date().toISOString(),type:type,ref:ref,cents:delta});save("ledger_"+who,a.slice(0,100));}
+function setWallet(who,cents,type,ref,delta){put("wallet_"+who,cents);ledger(who,type,ref,delta);}
+function notifyAdmins(message){var seen={};if(owner){Api.sendMessage({chat_id:owner,text:message});seen[owner]=true;}for(var i=0;i<admins.length;i++){var a=admins[i];if(a&&!seen[a]){Api.sendMessage({chat_id:a,text:message});seen[a]=true;}}}
 var owner=String(get("owner","")),admins=String(get("admins","")).split(",");
 var admin=uid===owner||admins.indexOf(uid)>=0;
 if(value==="/start"){Bot.runCommand("/start");return;}
@@ -68,18 +72,35 @@ if(state.kind==="deposit_proof"){
   save("deposit_"+id,{id:id,user:uid,amount:d.amount,method:d.method,status:"Pending",proof:proof,created:new Date().toISOString()});
   add("deposits",id);add("user_deposits_"+uid,id);
   User.setProperty("t4_deposit_draft","","string");
-  Api.sendPhoto({chat_id:owner,photo:proof,caption:"💳 Deposit "+id+"\nUser: "+uid+"\nAmount: $"+(d.amount/100).toFixed(2)+"\nReview in Admin Panel → Deposits."});
+  notifyAdmins("💳 New deposit "+id+"\nUser: "+uid+"\nAmount: $"+(d.amount/100).toFixed(2)+"\nReview in Admin Panel → Deposits.");
+  Api.sendPhoto({chat_id:owner,photo:proof,caption:"💳 Deposit "+id+" proof\nUser: "+uid+"\nAmount: $"+(d.amount/100).toFixed(2)});
   Bot.sendInlineKeyboard([[{title:"💰 Balance",command:"app balance"}]],"✅ Deposit "+id+" submitted. An admin will review it.");return;
 }
 if(state.kind==="ticket"){
   if(value.length<5||value.length>700){fail("Ticket message must be 5–700 characters.");return;}
   var id=next("TKT");save("ticket_"+id,{id:id,user:uid,message:value,status:"Open",reply:"",created:new Date().toISOString()});add("tickets",id);add("user_tickets_"+uid,id);
-  Api.sendMessage({chat_id:owner,text:"🎫 New ticket "+id+" from "+uid+"\n"+value});Bot.runCommand("app ticket "+id);return;
+  notifyAdmins("🎫 New ticket "+id+" from "+uid+"\n"+value);Bot.runCommand("app ticket "+id);return;
 }
 if(!admin){Bot.runCommand("app home");return;}
 if(state.kind==="admin_user_find"){
   if(!/^\d{5,16}$/.test(value)){fail("Enter a numeric Telegram ID.");return;}
   Bot.runCommand("app admin_user "+value);return;
+}
+if(state.kind==="admin_wallet_add"||state.kind==="admin_wallet_remove"){
+  var who=state.ref,c=money(value);if(!/^\d{5,16}$/.test(who)||get("user_seen_"+who,"no")!=="yes"||!c){fail("Invalid user or amount.");return;}
+  var before=wallet(who),delta=state.kind==="admin_wallet_add"?c:-c;if(before+delta<0){fail("Cannot reduce balance below $0.00.");return;}
+  setWallet(who,before+delta,state.kind==="admin_wallet_add"?"Admin Credit":"Admin Debit","ADMIN",delta);
+  Api.sendMessage({chat_id:who,text:(delta>0?"💰 Balance credited: +":"💸 Balance adjusted: ")+(delta/100).toFixed(2)+" USD\nNew balance: $"+((before+delta)/100).toFixed(2)});
+  Bot.runCommand("app admin_user "+who);return;
+}
+if(state.kind==="admin_find"){
+  var type=state.ref,v=value.toUpperCase(),prefix={order:"ORD-",deposit:"DEP-",ticket:"TKT-"}[type];if(!prefix||v.indexOf(prefix)!==0||!read(type+"_"+v)){fail("Record not found.");return;}
+  Bot.runCommand("app admin_"+type+" "+v);return;
+}
+if(state.kind==="admin_order_note"||state.kind==="admin_order_delivery"){
+  var o=read("order_"+state.ref);if(!o||!value||value.length>700){fail("Invalid order or text.");return;}
+  if(state.kind==="admin_order_note")o.admin_note=value;else o.delivery_result=value;
+  save("order_"+o.id,o);Api.sendMessage({chat_id:o.user,text:"📦 Order "+o.id+" update:\n"+value});Bot.runCommand("app admin_order "+o.id);return;
 }
 if(state.kind==="admin_broadcast"){
   if(uid!==owner)return;
