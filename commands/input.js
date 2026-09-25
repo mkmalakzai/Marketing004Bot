@@ -58,20 +58,26 @@ if(state.kind==="ticket"){
   Api.sendMessage({chat_id:owner,text:"🎫 New ticket "+id+" from "+uid+"\n"+value});Bot.runCommand("app ticket "+id);return;
 }
 if(!admin){Bot.runCommand("app home");return;}
+if(state.kind==="admin_user_find"){
+  if(!/^\d{5,16}$/.test(value)){fail("Enter a numeric Telegram ID.");return;}
+  Bot.runCommand("app admin_user "+value);return;
+}
+if(state.kind==="admin_broadcast"){
+  if(uid!==owner)return;
+  if(!value||value.length>700){fail("Message must be 1–700 characters.");return;}
+  User.setProperty("t4_broadcast_draft",value,"string");
+  Bot.runCommand("app admin_broadcast_preview");return;
+}
 if(state.kind==="admin_reply"){
   var t=read("ticket_"+state.ref);if(!t||!value||value.length>700){fail("Invalid ticket or reply.");return;}
   t.reply=value;t.status="Answered";save("ticket_"+t.id,t);
   Api.sendMessage({chat_id:t.user,text:"🎫 Reply to "+t.id+":\n"+value});Bot.runCommand("app admin_ticket "+t.id);return;
 }
 if(state.kind==="admin_setting"){
+  if(uid!==owner)return;
   if(state.ref==="admins"){
     var ids=value.replace(/\s/g,"");if(ids&&!/^\d{5,16}(,\d{5,16})*$/.test(ids)){fail("Send comma-separated numeric Telegram IDs.");return;}
     put("admins",ids);
-  }else if(state.ref==="api_url"){
-    if(value&&!/^https:\/\/[^\s]+$/.test(value)){fail("Use an HTTPS URL.");return;}
-    put("api_url",value);
-  }else if(state.ref==="api_key"){
-    if(value.length>300){fail("API key too long.");return;}put("api_key",value);
   }else return;
   Bot.runCommand("app admin_settings");return;
 }
@@ -87,7 +93,7 @@ if(state.kind==="admin_add"||state.kind==="admin_edit"){
     x.cat=f[0];x.name=f[1].slice(0,60);x.description=f[2].slice(0,300);
   }else if(type==="pkg"){
     var cents=money(f[2]||"");
-    if(f.length!==7||!read("srv_"+f[0])||!f[1]||!cents||!f[3]||!f[4]||["manual","api"].indexOf(f[6].toLowerCase())<0){fail("Use: service ID | name | price USD | delivery | required input | description | manual (or api). Invalid field.");return;}
+    if(f.length!==7||!read("srv_"+f[0])||!f[1]||!cents||!f[3]||!f[4]||f[6].toLowerCase()!=="manual"){fail("Use: service ID | name | price USD | delivery | required input | description | manual. Invalid field.");return;}
     x.srv=f[0];x.name=f[1].slice(0,60);x.price=cents;x.delivery=f[3].slice(0,100);x.requirement=f[4].slice(0,100);x.description=f[5].slice(0,300);x.mode=f[6].toLowerCase();
   }else if(type==="method"){
     if(f.length!==2||!f[0]||!f[1]){fail("Use: payment method name | address/instructions.");return;}
