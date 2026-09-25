@@ -86,6 +86,10 @@ function itemDescription(x) {
   if (x.delivery) { lines.push("Delivery: " + x.delivery); }
   if (x.requirement) { lines.push("Required details: " + x.requirement); }
   if (x.description) { lines.push("Description: " + x.description); }
+  if (x.mode) { lines.push("Mode: " + x.mode); }
+  if (x.provider) { lines.push("Provider: " + x.provider); }
+  if (x.provider_service) { lines.push("Provider Service: " + x.provider_service); }
+  if (x.quantity) { lines.push("Quantity: " + x.quantity); }
   if (x.address) { lines.push("Payment instructions: " + x.address); }
   if (x.code) { lines.push("Coupon: " + x.code + " (" + x.percent + "% off)"); }
   return lines.join("\n");
@@ -128,7 +132,8 @@ if (action === "service") {
 }
 if (action === "package") {
   var p=obj(key("pkg",id)), s=p && obj(key("srv",p.srv)); if(!p || !p.active || !s || !s.active){ Bot.runCommand("app services"); return; }
-  show("📦 "+p.name,"Price: "+money(p.price)+"\nDelivery: "+safe(p.delivery)+"\nRequired: "+safe(p.requirement)+"\nMode: "+p.mode+"\n\n"+safe(p.description),[row("🛒 Continue","order_input "+p.id),row("◀ Service","service "+p.srv)]); return;
+  var qline=p.mode==="api"&&p.quantity?"\nQuantity: "+p.quantity:"";
+  show("📦 "+p.name,"Price: "+money(p.price)+"\nDelivery: "+safe(p.delivery)+"\nRequired: "+safe(p.requirement)+"\nMode: "+p.mode+qline+"\n\n"+safe(p.description),[row("🛒 Continue","order_input "+p.id),row("◀ Service","service "+p.srv)]); return;
 }
 if (action === "order_input") { var p=obj(key("pkg",id)); if(!p || !p.active){Bot.runCommand("app services");return;} ask("order",id,"Send the required link/details for " + p.name + ": " + p.requirement); return; }
 if (action === "order_preview") {
@@ -148,13 +153,25 @@ if (action === "order_confirm") {
   var finalPrice=p.price-(offer?Math.floor(p.price*offer.percent/100):0);
   if(wallet(uid)<finalPrice){show("💰 INSUFFICIENT BALANCE","Total: "+money(finalPrice)+"\nBalance: "+money(wallet(uid)),[row("Add Funds","deposit_methods")]);return;}
   User.setProperty("t4_order_draft","","string");
-  var oid=newId("ORD"); var order={id:oid,user:uid,package:p.id,name:p.name,price:finalPrice,original_price:p.price,coupon:offer?offer.code:"",details:draft.details,status:"Pending",mode:p.mode,created:new Date().toISOString()};
+  var oid=newId("ORD"); var order={id:oid,user:uid,package:p.id,name:p.name,price:finalPrice,original_price:p.price,coupon:offer?offer.code:"",details:draft.details,status:"Pending",mode:p.mode,provider:p.provider||"",provider_service:p.provider_service||"",quantity:Number(p.quantity||0),created:new Date().toISOString()};
   save(key("order",oid),order);
   var all=list("orders");all.unshift(oid);saveList("orders",all);
   var mine=list("user_orders_"+uid);mine.unshift(oid);saveList("user_orders_"+uid,mine);
   setWallet(uid,wallet(uid)-finalPrice,"Order",oid,-finalPrice);
   if(offer)put("coupon_used_"+offer.id+"_"+uid,"yes");
   notifyAdmins("🛒 New order "+oid+"\n"+p.name+"\nUser: "+uid+"\nPrice: "+money(finalPrice));
+  if(p.mode==="api"){
+    var prv=obj(key("provider",p.provider));
+    if(!prv||!prv.active||prv.deleted||!prv.api_url||!prv.api_key||!p.provider_service||!p.quantity){
+      order.status="API Failed";order.api_error="Provider/package API settings are incomplete.";save(key("order",oid),order);
+      notifyAdmins("⚠️ API order failed before sending: "+oid+"\nCheck provider/package settings.");
+      show("⚠️ ORDER SAVED",oid+"\nStatus: API Failed\nPrice: "+money(finalPrice)+"\n\nAdmin has been notified.",[row("📦 View Order","order "+oid)]);return;
+    }
+    User.setProperty("t4_api_order_request",JSON.stringify({order:oid,provider:prv.id}),"string");
+    var body="key="+encodeURIComponent(prv.api_key)+"&action=add&service="+encodeURIComponent(p.provider_service)+"&link="+encodeURIComponent(draft.details)+"&quantity="+encodeURIComponent(String(p.quantity));
+    HTTP.post({url:prv.api_url,body:body,success:"provider_order_result",error:"provider_order_error",headers:{"Content-Type":"application/x-www-form-urlencoded"}});
+    show("✅ ORDER PLACED",oid+"\nStatus: Sending to provider...\nPrice: "+money(finalPrice),[row("📦 View Order","order "+oid)]);return;
+  }
   show("✅ ORDER PLACED",oid+"\nStatus: Pending\nPrice: "+money(finalPrice),[row("📦 View Order","order "+oid)]); return;
 }
 if (action === "my_orders") {
@@ -162,7 +179,7 @@ if (action === "my_orders") {
   show("📦 MY ORDERS",buttons.length?"Choose an order (latest 15).":"You haven't placed an order yet.",buttons);return;
 }
 if (action === "order") { var o=obj(key("order",id)); if(!belong(o) && !admin){Bot.runCommand("app home");return;} var olines=o.name+"\nStatus: "+o.status+"\nPrice: "+money(o.price)+"\nDetails: "+safe(o.details); if(o.admin_note)olines+="\nUpdate: "+safe(o.admin_note); if(o.delivery_result)olines+="\nDelivery: "+safe(o.delivery_result); if(o.provider_id)olines+="\nProvider ID: "+o.provider_id; var ob=admin?[row("🛠 Manage","admin_order "+id)]:[row("◀ My Orders","my_orders")]; if(!admin&&(o.status==="Pending"||o.status==="Processing"))ob.unshift(row("❌ Cancel & Refund","order_cancel "+id)); show("📦 "+o.id,olines,ob);return; }
-if (action === "order_cancel") { var o=obj(key("order",id)); if(!belong(o)||["Pending","Processing"].indexOf(o.status)<0){Bot.runCommand("app my_orders");return;} o.status="Cancelled";o.cancelled_by="user";o.cancelled_at=new Date().toISOString();save(key("order",id),o);setWallet(uid,wallet(uid)+o.price,"Order Cancel",id,o.price);notifyAdmins("❌ Order cancelled by user "+id+"\nUser: "+uid+"\nRefunded: "+money(o.price));show("✅ ORDER CANCELLED",id+"\nRefunded: "+money(o.price),[row("📦 My Orders","my_orders")]);return; }
+if (action === "order_cancel") { var o=obj(key("order",id)); if(!belong(o)||["Pending","Processing"].indexOf(o.status)<0||o.provider_order_id){Bot.runCommand("app my_orders");return;} o.status="Cancelled";o.cancelled_by="user";o.cancelled_at=new Date().toISOString();save(key("order",id),o);setWallet(uid,wallet(uid)+o.price,"Order Cancel",id,o.price);notifyAdmins("❌ Order cancelled by user "+id+"\nUser: "+uid+"\nRefunded: "+money(o.price));show("✅ ORDER CANCELLED",id+"\nRefunded: "+money(o.price),[row("📦 My Orders","my_orders")]);return; }
 if (action === "balance") { var b=[row("➕ Add Funds","deposit_methods"),row("🧾 Transactions","ledger"),row("📨 My Deposits","my_deposits")];show("💰 YOUR BALANCE",money(wallet(uid))+" USD",b);return; }
 if (action === "my_deposits") {var ids=list("user_deposits_"+uid),b=[];for(var i=0;i<ids.length&&i<15;i++){var d=obj(key("deposit",ids[i]));if(d)b.push(row(d.id+" • "+d.status+" • "+money(d.amount),"my_deposit "+d.id));}show("📨 MY DEPOSITS",b.length?"Latest 15 requests.":"No deposits yet.",b);return;}
 if (action === "my_deposit") {var d=obj(key("deposit",id));if(!belong(d)){Bot.runCommand("app balance");return;}show("💳 "+d.id,"Amount: "+money(d.amount)+"\nMethod: "+d.method+"\nStatus: "+d.status,[row("◀ My Deposits","my_deposits")]);return;}
@@ -274,7 +291,7 @@ if (action === "admin_add") {
     var srvs=list("services"),sb=[];
     for(var si=0;si<srvs.length;si++){
       var sv=obj(key("srv",srvs[si]));
-      if(sv&&sv.active&&!sv.deleted)sb.push(row("🚀 "+sv.name,"admin_add_pkg_srv "+sv.id));
+      if(sv&&sv.active&&!sv.deleted)sb.push(row("🚀 "+sv.name,"admin_pkg_mode "+sv.id));
     }
     show("📦 ADD PACKAGE",sb.length?"Choose a service for this package.":"No active services. Add a service first.",sb);return;
   }
@@ -287,6 +304,38 @@ if(action==="admin_add_srv_cat"){
   Bot.sendInlineKeyboard([[{title:"✖ Cancel",command:"app admin_services"}]],"🚀 Category: "+c.name+"\n\nSend service name.");
   Bot.runCommand("input",{waitForAnswer:true});return;
 }
+
+if(action==="admin_pkg_mode"){
+  var srv=obj(key("srv",id));if(!srv||!srv.active||srv.deleted){Bot.runCommand("app admin_packages");return;}
+  show("📦 PACKAGE MODE","Choose fulfillment mode for the new package.",[row("🧑 Manual","admin_pkg_mode_manual "+srv.id),row("⚡ API","admin_pkg_mode_api "+srv.id)]);return;
+}
+if(action==="admin_pkg_mode_manual"){
+  var srv=obj(key("srv",id));if(!srv||!srv.active||srv.deleted){Bot.runCommand("app admin_packages");return;}
+  User.setProperty("t4_pending",JSON.stringify({kind:"admin_item_step",ref:{type:"pkg",id:"",step:1,editing:false,data:{srv:srv.id,mode:"manual"}}}),"string");
+  Bot.sendInlineKeyboard([[{title:"✖ Cancel",command:"app admin_packages"}]],"📦 Service: "+srv.name+"\nMode: Manual\n\nSend package name.");
+  Bot.runCommand("input",{waitForAnswer:true});return;
+}
+if(action==="admin_pkg_mode_api"){
+  var srv=obj(key("srv",id));if(!srv||!srv.active||srv.deleted){Bot.runCommand("app admin_packages");return;}
+  var ids=list("providers"),b=[];
+  for(var i=0;i<ids.length;i++){var p=obj(key("provider",ids[i]));if(p&&p.active&&!p.deleted)b.push(row("🔌 "+p.name,"admin_pkg_provider "+srv.id+" "+p.id));}
+  show("⚡ API PACKAGE",b.length?"Choose a provider.":"No active provider. Add/enable one first.",b);return;
+}
+if(action==="admin_pkg_provider"){
+  var srv=obj(key("srv",id)),pid=args[2],prv=obj(key("provider",pid));
+  if(!srv||!srv.active||srv.deleted||!prv||!prv.active||prv.deleted){Bot.runCommand("app admin_packages");return;}
+  var sids=list("provider_services_"+pid),b=[];
+  for(var i=0;i<sids.length;i++){var ps=obj("provider_service_"+pid+"_"+sids[i]);if(ps&&ps.active)b.push(row("ID "+ps.service,"admin_pkg_provider_service "+srv.id+" "+pid+" "+ps.service));}
+  show("⚡ API PACKAGE",b.length?"Choose a saved provider service.":"No saved provider services. Add one from SMM Providers first.",b);return;
+}
+if(action==="admin_pkg_provider_service"){
+  var srv=obj(key("srv",id)),pid=args[2],sid=args[3],prv=obj(key("provider",pid)),ps=obj("provider_service_"+pid+"_"+sid);
+  if(!srv||!srv.active||srv.deleted||!prv||!prv.active||prv.deleted||!ps){Bot.runCommand("app admin_packages");return;}
+  User.setProperty("t4_pending",JSON.stringify({kind:"admin_item_step",ref:{type:"pkg",id:"",step:1,editing:false,data:{srv:srv.id,mode:"api",provider:pid,provider_service:sid}}}),"string");
+  Bot.sendInlineKeyboard([[{title:"✖ Cancel",command:"app admin_packages"}]],"📦 Service: "+srv.name+"\nMode: API\nProvider: "+prv.name+"\nProvider Service: "+sid+"\n\nSend package name.");
+  Bot.runCommand("input",{waitForAnswer:true});return;
+}
+
 if(action==="admin_add_pkg_srv"){
   var sv=obj(key("srv",id));if(!sv||!sv.active||sv.deleted){Bot.runCommand("app admin_packages");return;}
   User.setProperty("t4_pending",JSON.stringify({kind:"admin_item_step",ref:{type:"pkg",id:"",step:1,editing:false,data:{srv:sv.id}}}),"string");
@@ -308,7 +357,17 @@ if (action === "admin_orders" || action === "admin_deposits" || action === "admi
   show("🛠 "+action.toUpperCase(),b.length>1?"Latest records.":"No records yet.",b);return;
 }
 if(action==="admin_find"){var type=id;if(["order","deposit","ticket"].indexOf(type)<0)return;ask("admin_find",type,"Enter the exact "+type+" ID, e.g. "+(type==="order"?"ORD-1":type==="deposit"?"DEP-1":"TKT-1"));return;}
-if (action === "admin_order") {var o=obj(key("order",id));if(!o)return;var text="User: "+o.user+"\nStatus: "+o.status+"\nMode: "+o.mode+"\nPrice: "+money(o.price)+"\nDetails: "+safe(o.details);if(o.admin_note)text+="\nAdmin note: "+safe(o.admin_note);if(o.delivery_result)text+="\nDelivery result: "+safe(o.delivery_result);var b=[];if(o.status==="Pending")b.push(row("▶ Processing","admin_order_status "+id+" Processing"));if(o.status!=="Refunded"&&o.status!=="Cancelled")b.push(row("✅ Completed","admin_order_status "+id+" Completed"));if(o.status!=="Refunded"&&o.status!=="Cancelled")b.push(row("↩ Refund","admin_order_status "+id+" Refunded"));b.push(row("📝 Add Note","admin_order_note "+id));b.push(row("📬 Delivery Result","admin_order_delivery "+id));b.push(row("👤 User","admin_user "+o.user));show("🛒 "+o.id,text,b);return;}
+if (action === "admin_order") {var o=obj(key("order",id));if(!o)return;var text="User: "+o.user+"\nStatus: "+o.status+"\nMode: "+o.mode+"\nPrice: "+money(o.price)+"\nDetails: "+safe(o.details);if(o.provider)text+="\nProvider: "+o.provider;if(o.provider_service)text+="\nProvider Service: "+o.provider_service;if(o.quantity)text+="\nQuantity: "+o.quantity;if(o.provider_order_id)text+="\nProvider Order: "+o.provider_order_id;if(o.api_error)text+="\nAPI Error: "+safe(o.api_error);if(o.admin_note)text+="\nAdmin note: "+safe(o.admin_note);if(o.delivery_result)text+="\nDelivery result: "+safe(o.delivery_result);var b=[];if(o.provider_order_id)b.push(row("🔄 Provider Status","admin_provider_order_status "+id));if(o.status==="Pending")b.push(row("▶ Processing","admin_order_status "+id+" Processing"));if(o.status!=="Refunded"&&o.status!=="Cancelled")b.push(row("✅ Completed","admin_order_status "+id+" Completed"));if(o.status!=="Refunded"&&o.status!=="Cancelled")b.push(row("↩ Refund","admin_order_status "+id+" Refunded"));b.push(row("📝 Add Note","admin_order_note "+id));b.push(row("📬 Delivery Result","admin_order_delivery "+id));b.push(row("👤 User","admin_user "+o.user));show("🛒 "+o.id,text,b);return;}
+
+if(action==="admin_provider_order_status"){
+  var o=obj(key("order",id));if(!o||!o.provider_order_id||!o.provider)return;
+  var prv=obj(key("provider",o.provider));if(!prv||!prv.api_url||!prv.api_key)return;
+  User.setProperty("t4_api_status_request",JSON.stringify({order:o.id,provider:prv.id}),"string");
+  var body="key="+encodeURIComponent(prv.api_key)+"&action=status&order="+encodeURIComponent(String(o.provider_order_id));
+  HTTP.post({url:prv.api_url,body:body,success:"provider_status_result",error:"provider_status_error",headers:{"Content-Type":"application/x-www-form-urlencoded"}});
+  Bot.sendMessage("⏳ Checking provider order status...");return;
+}
+
 if(action==="admin_order_note"){if(!obj(key("order",id)))return;ask("admin_order_note",id,"Send an internal/admin update for order "+id+" (shown to the user as an update).");return;}
 if(action==="admin_order_delivery"){if(!obj(key("order",id)))return;ask("admin_order_delivery",id,"Send the manual delivery result for order "+id+". This will be shown to the user.");return;}
 if (action === "admin_order_status") {
