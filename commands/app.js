@@ -90,6 +90,10 @@ function itemDescription(x) {
   if (x.provider) { lines.push("Provider: " + x.provider); }
   if (x.provider_service) { lines.push("Provider Service: " + x.provider_service); }
   if (x.quantity) { lines.push("Quantity: " + x.quantity); }
+  if (x.mode) { lines.push("Mode: " + x.mode); }
+  if (x.provider) { lines.push("Provider: " + x.provider); }
+  if (x.provider_service) { lines.push("Provider Service: " + x.provider_service); }
+  if (x.quantity) { lines.push("Quantity: " + x.quantity); }
   if (x.address) { lines.push("Payment instructions: " + x.address); }
   if (x.code) { lines.push("Coupon: " + x.code + " (" + x.percent + "% off)"); }
   return lines.join("\n");
@@ -304,6 +308,38 @@ if(action==="admin_add_srv_cat"){
   Bot.sendInlineKeyboard([[{title:"✖ Cancel",command:"app admin_services"}]],"🚀 Category: "+c.name+"\n\nSend service name.");
   Bot.runCommand("input",{waitForAnswer:true});return;
 }
+
+if(action==="admin_pkg_mode"){
+  var srv=obj(key("srv",id));if(!srv||!srv.active||srv.deleted){Bot.runCommand("app admin_packages");return;}
+  show("📦 PACKAGE MODE","Choose fulfillment mode for the new package.",[row("🧑 Manual","admin_pkg_mode_manual "+srv.id),row("⚡ API","admin_pkg_mode_api "+srv.id)]);return;
+}
+if(action==="admin_pkg_mode_manual"){
+  var srv=obj(key("srv",id));if(!srv||!srv.active||srv.deleted){Bot.runCommand("app admin_packages");return;}
+  User.setProperty("t4_pending",JSON.stringify({kind:"admin_item_step",ref:{type:"pkg",id:"",step:1,editing:false,data:{srv:srv.id,mode:"manual"}}}),"string");
+  Bot.sendInlineKeyboard([[{title:"✖ Cancel",command:"app admin_packages"}]],"📦 Service: "+srv.name+"\nMode: Manual\n\nSend package name.");
+  Bot.runCommand("input",{waitForAnswer:true});return;
+}
+if(action==="admin_pkg_mode_api"){
+  var srv=obj(key("srv",id));if(!srv||!srv.active||srv.deleted){Bot.runCommand("app admin_packages");return;}
+  var ids=list("providers"),b=[];
+  for(var i=0;i<ids.length;i++){var p=obj(key("provider",ids[i]));if(p&&p.active&&!p.deleted)b.push(row("🔌 "+p.name,"admin_pkg_provider "+srv.id+" "+p.id));}
+  show("⚡ API PACKAGE",b.length?"Choose a provider.":"No active provider. Add/enable one first.",b);return;
+}
+if(action==="admin_pkg_provider"){
+  var srv=obj(key("srv",id)),pid=args[2],prv=obj(key("provider",pid));
+  if(!srv||!srv.active||srv.deleted||!prv||!prv.active||prv.deleted){Bot.runCommand("app admin_packages");return;}
+  var sids=list("provider_services_"+pid),b=[];
+  for(var i=0;i<sids.length;i++){var ps=obj("provider_service_"+pid+"_"+sids[i]);if(ps&&ps.active)b.push(row("ID "+ps.service,"admin_pkg_provider_service "+srv.id+" "+pid+" "+ps.service));}
+  show("⚡ API PACKAGE",b.length?"Choose a saved provider service.":"No saved provider services. Add one from SMM Providers first.",b);return;
+}
+if(action==="admin_pkg_provider_service"){
+  var srv=obj(key("srv",id)),pid=args[2],sid=args[3],prv=obj(key("provider",pid)),ps=obj("provider_service_"+pid+"_"+sid);
+  if(!srv||!srv.active||srv.deleted||!prv||!prv.active||prv.deleted||!ps){Bot.runCommand("app admin_packages");return;}
+  User.setProperty("t4_pending",JSON.stringify({kind:"admin_item_step",ref:{type:"pkg",id:"",step:1,editing:false,data:{srv:srv.id,mode:"api",provider:pid,provider_service:sid}}}),"string");
+  Bot.sendInlineKeyboard([[{title:"✖ Cancel",command:"app admin_packages"}]],"📦 Service: "+srv.name+"\nMode: API\nProvider: "+prv.name+"\nProvider Service: "+sid+"\n\nSend package name.");
+  Bot.runCommand("input",{waitForAnswer:true});return;
+}
+
 
 if(action==="admin_pkg_mode"){
   var srv=obj(key("srv",id));if(!srv||!srv.active||srv.deleted){Bot.runCommand("app admin_packages");return;}
