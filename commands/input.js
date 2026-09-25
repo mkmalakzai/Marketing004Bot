@@ -26,7 +26,32 @@ function list(k){return read(k)||[];}
 function add(k,id){var a=list(k);a.unshift(id);save(k,a);}
 function next(type){var n=Number(get("seq_"+type,0))+1;put("seq_"+type,n);return type+"-"+n;}
 function fail(text){Bot.sendInlineKeyboard([[{title:"🏠 Main Menu",command:"app home"}]],"⚠️ "+text);}
-function money(s){if(!/^(0|[1-9][0-9]{0,5})(\.[0-9]{1,2})?$/.test(s))return null;var p=s.split(".");var v=Number(p[0])*100+Number(((p[1]||"")+"00").slice(0,2));return v>0?v:null;}
+function money(s){
+  s=String(s||"").trim();
+  if(!s){return null;}
+  var dots=0;
+  var i;
+  var ch;
+  for(i=0;i<s.length;i++){
+    ch=s.charAt(i);
+    if(ch=="."){dots=dots+1;if(dots>1){return null;}}
+    else if(ch<"0"||ch>"9"){return null;}
+  }
+  var p=s.split(".");
+  if(!p[0]||p[0].length>6){return null;}
+  if(p.length>1&&(p[1].length<1||p[1].length>2)){return null;}
+  var v=Number(p[0])*100+Number(((p[1]||"")+"00").slice(0,2));
+  if(v>0){return v;}
+  return null;
+}
+function isUserId(v){
+  v=String(v||"");
+  if(v.length<5||v.length>16){return false;}
+  var i;
+  var ch;
+  for(i=0;i<v.length;i++){ch=v.charAt(i);if(ch<"0"||ch>"9"){return false;}}
+  return true;
+}
 function wallet(who){return Number(get("wallet_"+who,0));}
 function ledger(who,type,ref,delta){var a=list("ledger_"+who);a.unshift({at:new Date().toISOString(),type:type,ref:ref,cents:delta});save("ledger_"+who,a.slice(0,100));}
 function setWallet(who,cents,type,ref,delta){put("wallet_"+who,cents);ledger(who,type,ref,delta);}
@@ -116,10 +141,22 @@ if(state.kind==="admin_reply"){
 if(state.kind==="admin_setting"){
   if(uid!==owner)return;
   if(state.ref==="admins"){
-    var ids=value==="-"?"":value.replace(/\s/g,"");if(ids&&!/^\d{5,16}(,\d{5,16})*$/.test(ids)){fail("Send comma-separated numeric Telegram IDs.");return;}
+    var ids="";
+    if(value!="-"){
+      var rawIds=value.split(",");
+      var clean=[];
+      var ai;
+      var one;
+      for(ai=0;ai<rawIds.length;ai++){
+        one=String(rawIds[ai]||"").trim();
+        if(!isUserId(one)){fail("Send comma-separated numeric Telegram IDs.");return;}
+        clean.push(one);
+      }
+      ids=clean.join(",");
+    }
     put("admins",ids);
   }else if(state.ref==="store_name"){
-    if(value.length<2||value.length>60||/[\r\n]/.test(value)){fail("Use a single line with 2–60 characters.");return;}
+    if(value.length<2||value.length>60||value.indexOf("\n")>=0||value.indexOf("\r")>=0){fail("Use a single line with 2–60 characters.");return;}
     put("store_name",value);
   }else return;
   Bot.runCommand("app admin_settings");return;
@@ -127,7 +164,11 @@ if(state.kind==="admin_setting"){
 if(state.kind==="admin_add"||state.kind==="admin_edit"){
   var editing=state.kind==="admin_edit",parts=state.ref.split(":"),type=parts[0],old=editing?read(type+"_"+parts[1]):null;
   if(editing&&(!old||old.deleted)){fail("Item not found.");return;}
-  var f=value.split("|").map(function(x){return x.trim();}),x=old||{};
+  var rawFields=value.split("|");
+  var f=[];
+  var fi;
+  for(fi=0;fi<rawFields.length;fi++){f.push(String(rawFields[fi]||"").trim());}
+  var x=old||{};
   if(type==="cat"){
     if(f.length!==1||!f[0]||f[0].length>60){fail("Send one category name, up to 60 characters.");return;}
     x.name=f[0];
@@ -145,7 +186,19 @@ if(state.kind==="admin_add"||state.kind==="admin_edit"){
     if((f.length!==2&&f.length!==4)||!f[0]||!f[1]){fail("Use: title | description, or title | description | CODE | percent.");return;}
     if(f.length===4){
       var code=f[2].toUpperCase(),pct=Number(f[3]);
-      if(!/^[A-Z0-9]{3,20}$/.test(code)||!Number.isInteger(pct)||pct<1||pct>90){fail("Code needs 3–20 letters/numbers; percent needs 1–90.");return;}
+      var goodCode=true;
+      if(code.length<3||code.length>20){goodCode=false;}
+      var ci;
+      var cc;
+      var az;
+      var dg;
+      for(ci=0;ci<code.length;ci++){
+        cc=code.charAt(ci);
+        az=cc>="A"&&cc<="Z";
+        dg=cc>="0"&&cc<="9";
+        if(!az&&!dg){goodCode=false;break;}
+      }
+      if(!goodCode||pct!=Math.floor(pct)||pct<1||pct>90){fail("Code needs 3–20 letters/numbers; percent needs 1–90.");return;}
       var allOffers=list("offers");for(var j=0;j<allOffers.length;j++){var prev=read("offer_"+allOffers[j]);if(prev&&prev.code===code&&(!editing||prev.id!==old.id)){fail("Coupon code already exists.");return;}}
       x.code=code;x.percent=pct;
     }else {x.code="";x.percent=0;}
