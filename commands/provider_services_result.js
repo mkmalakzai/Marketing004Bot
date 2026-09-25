@@ -27,7 +27,7 @@ if(!data.length){
   return;
 }
 var keep=[],i,s;
-for(i=0;i<data.length&&i<500;i++){
+for(i=0;i<data.length&&i<100;i++){
   s=data[i]||{};
   keep.push({
     service:String(s.service||""),
@@ -41,8 +41,8 @@ for(i=0;i<data.length&&i<500;i++){
     cancel:s.cancel===true
   });
 }
-Bot.setProperty("t4_provider_services_"+ctx.provider,JSON.stringify(keep),"string");
-Bot.setProperty("t4_provider_services_count_"+ctx.provider,keep.length,"integer");
+Bot.setProperty("t4_provider_services_preview_"+ctx.provider,JSON.stringify(keep),"string");
+Bot.setProperty("t4_provider_services_count_"+ctx.provider,data.length,"integer");
 var lines=[],limit=keep.length<12?keep.length:12;
 for(i=0;i<limit;i++){
   s=keep[i];
