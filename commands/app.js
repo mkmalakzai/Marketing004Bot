@@ -197,9 +197,38 @@ if (action === "admin_cats" || action === "admin_services" || action === "admin_
   show("🛠 "+plural.toUpperCase(),"Add or edit an item.",b);return;
 }
 if (action === "admin_add") {
-  var type=id; if(["cat","srv","pkg","method","offer"].indexOf(type)<0)return;
-  var hint={cat:"We will add the category step by step.",srv:"We will ask for category, name and description one by one.",pkg:"We will ask for service, name, price, delivery, required input and description one by one.",method:"We will ask for method name and payment instructions separately.",offer:"We will ask for title, description, coupon and discount separately."}[type];
+  var type=id;
+  if(["cat","srv","pkg","method","offer"].indexOf(type)<0)return;
+  if(type==="srv"){
+    var cats=list("cats"),cb=[];
+    for(var ci=0;ci<cats.length;ci++){
+      var c=obj(key("cat",cats[ci]));
+      if(c&&c.active&&!c.deleted)cb.push(row("📁 "+c.name,"admin_add_srv_cat "+c.id));
+    }
+    show("🚀 ADD SERVICE",cb.length?"Choose a category for this service.":"No active categories. Add a category first.",cb);return;
+  }
+  if(type==="pkg"){
+    var srvs=list("services"),sb=[];
+    for(var si=0;si<srvs.length;si++){
+      var sv=obj(key("srv",srvs[si]));
+      if(sv&&sv.active&&!sv.deleted)sb.push(row("🚀 "+sv.name,"admin_add_pkg_srv "+sv.id));
+    }
+    show("📦 ADD PACKAGE",sb.length?"Choose a service for this package.":"No active services. Add a service first.",sb);return;
+  }
+  var hint={cat:"We will add the category step by step.",method:"We will ask for method name and payment instructions separately.",offer:"We will ask for title, description, coupon and discount separately."}[type];
   ask("admin_add",type,hint);return;
+}
+if(action==="admin_add_srv_cat"){
+  var c=obj(key("cat",id));if(!c||!c.active||c.deleted){Bot.runCommand("app admin_services");return;}
+  User.setProperty("t4_pending",JSON.stringify({kind:"admin_item_step",ref:{type:"srv",id:"",step:1,editing:false,data:{cat:c.id}}}),"string");
+  Bot.sendInlineKeyboard([[{title:"✖ Cancel",command:"app admin_services"}]],"🚀 Category: "+c.name+"\n\nSend service name.");
+  Bot.runCommand("input",{waitForAnswer:true});return;
+}
+if(action==="admin_add_pkg_srv"){
+  var sv=obj(key("srv",id));if(!sv||!sv.active||sv.deleted){Bot.runCommand("app admin_packages");return;}
+  User.setProperty("t4_pending",JSON.stringify({kind:"admin_item_step",ref:{type:"pkg",id:"",step:1,editing:false,data:{srv:sv.id}}}),"string");
+  Bot.sendInlineKeyboard([[{title:"✖ Cancel",command:"app admin_packages"}]],"📦 Service: "+sv.name+"\n\nSend package name.");
+  Bot.runCommand("input",{waitForAnswer:true});return;
 }
 if (action === "admin_item") {var type=id,x=obj(key(type,args[2]));if(!x||x.deleted){Bot.runCommand("app "+itemSection(type));return;}show("🛠 "+x.id,itemDescription(x),[row(x.active?"⛔ Disable":"✅ Enable","admin_toggle "+type+" "+x.id),row("✏ Edit","admin_edit "+type+" "+x.id),row("🗑 Delete","admin_delete "+type+" "+x.id),row("◀ Items",itemSection(type))]);return;}
 if (action === "admin_toggle" || action === "admin_delete") {
