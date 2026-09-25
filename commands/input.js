@@ -161,54 +161,71 @@ if(state.kind==="admin_setting"){
   }else return;
   Bot.runCommand("app admin_settings");return;
 }
-if(state.kind==="admin_add"||state.kind==="admin_edit"){
-  var editing=state.kind==="admin_edit",parts=state.ref.split(":"),type=parts[0],old=editing?read(type+"_"+parts[1]):null;
-  if(editing&&(!old||old.deleted)){fail("Item not found.");return;}
-  var rawFields=value.split("|");
-  var f=[];
-  var fi;
-  for(fi=0;fi<rawFields.length;fi++){f.push(String(rawFields[fi]||"").trim());}
-  var x=old||{};
-  if(type==="cat"){
-    if(f.length!==1||!f[0]||f[0].length>60){fail("Send one category name, up to 60 characters.");return;}
-    x.name=f[0];
-  }else if(type==="srv"){
-    if(f.length!==3||!read("cat_"+f[0])||!f[1]||!f[2]){fail("Use: existing category ID | name | description.");return;}
-    x.cat=f[0];x.name=f[1].slice(0,60);x.description=f[2].slice(0,300);
-  }else if(type==="pkg"){
-    var cents=money(f[2]||"");
-    if(f.length!==7||!read("srv_"+f[0])||!f[1]||!cents||!f[3]||!f[4]||f[6].toLowerCase()!=="manual"){fail("Use: service ID | name | price USD | delivery | required input | description | manual. Invalid field.");return;}
-    x.srv=f[0];x.name=f[1].slice(0,60);x.price=cents;x.delivery=f[3].slice(0,100);x.requirement=f[4].slice(0,100);x.description=f[5].slice(0,300);x.mode=f[6].toLowerCase();
-  }else if(type==="method"){
-    if(f.length!==2||!f[0]||!f[1]){fail("Use: payment method name | address/instructions.");return;}
-    x.name=f[0].slice(0,60);x.address=f[1].slice(0,400);
-  }else if(type==="offer"){
-    if((f.length!==2&&f.length!==4)||!f[0]||!f[1]){fail("Use: title | description, or title | description | CODE | percent.");return;}
-    if(f.length===4){
-      var code=f[2].toUpperCase(),pct=Number(f[3]);
-      var goodCode=true;
-      if(code.length<3||code.length>20){goodCode=false;}
-      var ci;
-      var cc;
-      var az;
-      var dg;
-      for(ci=0;ci<code.length;ci++){
-        cc=code.charAt(ci);
-        az=cc>="A"&&cc<="Z";
-        dg=cc>="0"&&cc<="9";
-        if(!az&&!dg){goodCode=false;break;}
-      }
-      if(!goodCode||pct!=Math.floor(pct)||pct<1||pct>90){fail("Code needs 3–20 letters/numbers; percent needs 1–90.");return;}
-      var allOffers=list("offers");for(var j=0;j<allOffers.length;j++){var prev=read("offer_"+allOffers[j]);if(prev&&prev.code===code&&(!editing||prev.id!==old.id)){fail("Coupon code already exists.");return;}}
-      x.code=code;x.percent=pct;
-    }else {x.code="";x.percent=0;}
-    x.title=f[0].slice(0,60);x.description=f[1].slice(0,400);
-  }else return;
-  if(!editing){
-    var labels={cat:"CAT",srv:"SRV",pkg:"PKG",method:"PAY",offer:"OFR"};
-    var buckets={cat:"cats",srv:"services",pkg:"packages",method:"methods",offer:"offers"};
-    x.id=next(labels[type]);x.active=true;add(buckets[type],x.id);
+if(state.kind==="admin_add"||state.kind==="admin_edit"||state.kind==="admin_item_step"){
+  var editing=state.kind==="admin_edit";
+  var type, itemId, step, x;
+  if(state.kind==="admin_item_step"){
+    type=state.ref.type; itemId=state.ref.id||""; step=Number(state.ref.step||0); editing=state.ref.editing===true;
+    x=state.ref.data||{};
+  }else{
+    var parts=String(state.ref||"").split(":");
+    type=parts[0]; itemId=editing?(parts[1]||""):""; step=0;
+    x=editing?read(type+"_"+itemId):{};
+    if(editing&&(!x||x.deleted)){fail("Item not found.");return;}
   }
-  save(type+"_"+x.id,x);Bot.runCommand("app admin_item "+type+" "+x.id);return;
+  function stepAsk(n,label){
+    User.setProperty("t4_pending",JSON.stringify({kind:"admin_item_step",ref:{type:type,id:itemId,step:n,editing:editing,data:x}}),"string");
+    Bot.sendInlineKeyboard([[{title:"✖ Cancel",command:"app "+({cat:"admin_cats",srv:"admin_services",pkg:"admin_packages",method:"admin_methods",offer:"admin_offers"}[type]||"admin")}]],label);
+    Bot.runCommand("input",{waitForAnswer:true});
+  }
+  function finish(){
+    if(!editing){
+      var labels={cat:"CAT",srv:"SRV",pkg:"PKG",method:"PAY",offer:"OFR"};
+      var buckets={cat:"cats",srv:"services",pkg:"packages",method:"methods",offer:"offers"};
+      x.id=next(labels[type]);x.active=true;add(buckets[type],x.id);
+    }
+    save(type+"_"+x.id,x);Bot.runCommand("app admin_item "+type+" "+x.id);
+  }
+  if(type==="cat"){
+    if(step===0){stepAsk(1,"📁 Send category name.");return;}
+    if(!value||value.length>60){fail("Category name must be 1–60 characters.");return;}
+    x.name=value;finish();return;
+  }
+  if(type==="srv"){
+    if(step===0){stepAsk(1,"📁 Send existing Category ID, e.g. CAT-1");return;}
+    if(step===1){if(!read("cat_"+value.toUpperCase())){fail("Category not found.");return;}x.cat=value.toUpperCase();stepAsk(2,"🚀 Send service name.");return;}
+    if(step===2){if(!value||value.length>60){fail("Service name must be 1–60 characters.");return;}x.name=value;stepAsk(3,"📝 Send service description.");return;}
+    if(!value||value.length>300){fail("Description must be 1–300 characters.");return;}x.description=value;finish();return;
+  }
+  if(type==="pkg"){
+    if(step===0){stepAsk(1,"🚀 Send existing Service ID, e.g. SRV-1");return;}
+    if(step===1){if(!read("srv_"+value.toUpperCase())){fail("Service not found.");return;}x.srv=value.toUpperCase();stepAsk(2,"📦 Send package name.");return;}
+    if(step===2){if(!value||value.length>60){fail("Package name must be 1–60 characters.");return;}x.name=value;stepAsk(3,"💵 Send price in USD, e.g. 5.00");return;}
+    if(step===3){var pc=money(value);if(!pc){fail("Invalid price.");return;}x.price=pc;stepAsk(4,"⏱ Send delivery time, e.g. 1–24 hours.");return;}
+    if(step===4){if(!value||value.length>100){fail("Delivery must be 1–100 characters.");return;}x.delivery=value;stepAsk(5,"🔗 What input must the user send? e.g. Post link");return;}
+    if(step===5){if(!value||value.length>100){fail("Required input must be 1–100 characters.");return;}x.requirement=value;stepAsk(6,"📝 Send package description.");return;}
+    if(!value||value.length>300){fail("Description must be 1–300 characters.");return;}x.description=value;x.mode="manual";finish();return;
+  }
+  if(type==="method"){
+    if(step===0){stepAsk(1,"💳 Send payment method name.");return;}
+    if(step===1){if(!value||value.length>60){fail("Method name must be 1–60 characters.");return;}x.name=value;stepAsk(2,"📋 Send payment address / instructions.");return;}
+    if(!value||value.length>400){fail("Instructions must be 1–400 characters.");return;}x.address=value;finish();return;
+  }
+  if(type==="offer"){
+    if(step===0){stepAsk(1,"🎁 Send offer title.");return;}
+    if(step===1){if(!value||value.length>60){fail("Title must be 1–60 characters.");return;}x.title=value;stepAsk(2,"📝 Send offer description.");return;}
+    if(step===2){if(!value||value.length>400){fail("Description must be 1–400 characters.");return;}x.description=value;stepAsk(3,"🎟 Send coupon code, or send - for no coupon.");return;}
+    if(step===3){
+      if(value==="-"){x.code="";x.percent=0;finish();return;}
+      var code=value.toUpperCase(),good=true,ci,cc,az,dg;
+      if(code.length<3||code.length>20)good=false;
+      for(ci=0;ci<code.length;ci++){cc=code.charAt(ci);az=cc>="A"&&cc<="Z";dg=cc>="0"&&cc<="9";if(!az&&!dg){good=false;break;}}
+      if(!good){fail("Coupon needs 3–20 letters/numbers.");return;}
+      var all=list("offers");for(var j=0;j<all.length;j++){var prev=read("offer_"+all[j]);if(prev&&prev.code===code&&(!editing||prev.id!==x.id)){fail("Coupon code already exists.");return;}}
+      x.code=code;stepAsk(4,"📉 Send discount percent from 1 to 90.");return;
+    }
+    var pct=Number(value);if(pct!=Math.floor(pct)||pct<1||pct>90){fail("Percent must be 1–90.");return;}x.percent=pct;finish();return;
+  }
+  fail("Unknown item type.");return;
 }
 Bot.runCommand("app home");
