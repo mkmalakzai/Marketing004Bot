@@ -108,11 +108,11 @@ if(state.kind==="ticket"){
 }
 if(!admin){Bot.runCommand("app home");return;}
 if(state.kind==="admin_user_find"){
-  if(!/^\d{5,16}$/.test(value)){fail("Enter a numeric Telegram ID.");return;}
+  if(!isUserId(value)){fail("Enter a numeric Telegram ID.");return;}
   Bot.runCommand("app admin_user "+value);return;
 }
 if(state.kind==="admin_wallet_add"||state.kind==="admin_wallet_remove"){
-  var who=state.ref,c=money(value);if(!/^\d{5,16}$/.test(who)||get("user_seen_"+who,"no")!=="yes"||!c){fail("Invalid user or amount.");return;}
+  var who=state.ref,c=money(value);if(!isUserId(who)||get("user_seen_"+who,"no")!=="yes"||!c){fail("Invalid user or amount.");return;}
   var before=wallet(who),delta=state.kind==="admin_wallet_add"?c:-c;if(before+delta<0){fail("Cannot reduce balance below $0.00.");return;}
   setWallet(who,before+delta,state.kind==="admin_wallet_add"?"Admin Credit":"Admin Debit","ADMIN",delta);
   Api.sendMessage({chat_id:who,text:(delta>0?"💰 Balance credited: +":"💸 Balance adjusted: ")+(delta/100).toFixed(2)+" USD\nNew balance: $"+((before+delta)/100).toFixed(2)});
