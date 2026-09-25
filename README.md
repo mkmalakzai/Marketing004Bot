@@ -23,17 +23,16 @@ Setup preserves existing balances, categories, orders, deposits, and additional 
 
 ## Current working flows
 
-- User: menu, catalog navigation, package and order preview, wallet, manual deposit request with photo, order history, transaction history, active-order cancellation with automatic refund, manual delivery/update visibility, offers display, stats, support tickets and account.
-- Admin: category/service/package add/edit/disable/delete (soft delete), order search and manual fulfillment notes/results, order status/refunds, payment method management, manual deposit review, record lookup by ID, user detail pages, balance credit/debit tools with ledger entries, offer and one-use coupon management, ticket reply/close/reopen, user ban/unban, additional admin IDs and basic broadcast (up to 100 registered users).
+- User: professional menu, catalog navigation, package and order preview, wallet, manual deposit request with photo, order history, transaction history, manual-order cancellation with automatic refund, API-order progress visibility, manual delivery/update visibility, offers, stats, support tickets and account.
+- Admin: category/service/package add/edit/disable/delete, Manual/API package mode, SMM provider management, provider balance/test actions, saved provider service IDs, API order status refresh, order search and manual fulfillment notes/results, order status/refunds, payment methods, deposit review, record lookup, user pages, wallet tools, coupons/offers, tickets, ban/unban, additional admins and broadcast (up to 100 registered users).
 - USD balances are stored in integer cents. Deposits credit only when an admin approves; orders debit once upon confirmation; refunds credit once. Repeated button presses on completed actions are ignored.
 - The BOTBOX credit appears only in My Account.
 
-Admin creation inputs use a pipe `|` between fields; the bot shows the required format. Example package:
-`SRV-1 | Starter | 5.00 | 2 days | channel link | Manual delivery | manual`
+Admin creation flows are step-by-step. Relationships such as Category → Service and Service → Package are selected with buttons instead of manual IDs where practical. API packages can select an enabled provider and a saved provider service ID.
 
 ## Important limits before real money
 
-**Manual fulfillment is implemented. Automatic SMM API fulfillment is not enabled.** The provider URL, authentication method, service mapping, quantity rules, and status response need to be specified for the chosen provider. Bots.Business's current BJS HTTP transport does not validate HTTPS server certificates, so a sensitive provider key must not be sent directly through it. A secure integration needs a separately reviewed transport with certificate validation. Do not enter an API key into the bot yet.
+Manual fulfillment and SMM API fulfillment are both implemented. Admins can add an SMM provider, store its API URL/key in bot properties, save provider service IDs, and map API packages to a provider service with a fixed quantity. API orders are submitted automatically; successful provider order IDs are saved, status can be refreshed from the admin order page, and failed submissions are refunded automatically.
 
 BJS bot properties and counters are not transactional. Concurrent order/payment callbacks and provider interactions need an atomic external ledger before high-volume, real-money operation. The local tests cover common single-user flows and repeated clicks, but the bot has not been exercised in your live Bots.Business workspace. Test with non-real funds before enabling a public deposit address.
 
@@ -42,3 +41,8 @@ Offers support announcements or an optional 1–90% coupon code. Each user can r
 ## Local regression checks
 
 Run `node tests/flows.cjs`. This harness simulates BJS storage and routing: setup authorization, pre-setup mutation guards, repeated setup preserving data, direct and inline admin entry, two-column dashboard, additional admin permissions, delete confirmation, screenshot review, cancellation, catalog/order/deposit/coupon flows, repeated approvals and refunds. It does not simulate Telegram formatting, the live Bots.Business importer, concurrency, or delivery failures.
+
+
+## Final status
+
+TPL-004 is feature-complete for the current BOTBOX scope. The Followiz error/refund path has been tested live. A successful paid provider order still requires provider balance for final end-to-end confirmation.
