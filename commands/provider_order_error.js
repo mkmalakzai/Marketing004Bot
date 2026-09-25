@@ -35,5 +35,5 @@ o.status="API Failed";
 o.api_error="Provider request failed";
 Bot.setProperty("t4_order_"+o.id,JSON.stringify(o),"string");
 
-Api.sendMessage({chat_id:o.user,text:"⚠️ Order "+o.id+" could not be sent to the provider. Your payment was refunded."});
-if(owner){Api.sendMessage({chat_id:owner,text:"⚠️ Provider request failed for "+o.id});}
+Api.sendMessage({chat_id:o.user,text:"⚠️ ORDER FAILED\n\nOrder: "+o.id+"\nThe provider connection failed before the order could be confirmed.\nRefund: Completed\nAmount returned: $"+(Number(o.price||0)/100).toFixed(2)+"\n\nPlease try again later."});
+if(owner){Api.sendMessage({chat_id:owner,text:"⚠️ PROVIDER REQUEST FAILED\n\nOrder: "+o.id+"\nThe user was refunded automatically."});}
