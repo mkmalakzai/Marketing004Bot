@@ -107,6 +107,34 @@ if(state.kind==="ticket"){
   notifyAdmins("🎫 New ticket "+id+" from "+uid+"\n"+value);Bot.runCommand("app ticket "+id);return;
 }
 if(!admin){Bot.runCommand("app home");return;}
+
+if(state.kind==="admin_provider_step"){
+  var r=state.ref||{},step=Number(r.step||0),editing=r.editing===true,p=r.data||{};
+  function providerAsk(nextStep,label){
+    User.setProperty("t4_pending",JSON.stringify({kind:"admin_provider_step",ref:{step:nextStep,id:r.id||"",editing:editing,data:p}}),"string");
+    Bot.sendInlineKeyboard([[{title:"✖ Cancel",command:editing&&r.id?"app admin_provider "+r.id:"app admin_providers"}]],label);
+    Bot.runCommand("input",{waitForAnswer:true});
+  }
+  if(step===1){
+    if(!value||value.length>60){fail("Provider name must be 1–60 characters.");return;}
+    p.name=value;providerAsk(2,"🌐 Send API URL.\n\nExample: https://followiz.com/api/v2");return;
+  }
+  if(step===2){
+    if(value.indexOf("https://")!==0||value.length>200){fail("Send a valid HTTPS API URL.");return;}
+    p.api_url=value;providerAsk(3,"🔑 Send API key.\n\nIt will be stored in bot properties, not shown in the provider list.");return;
+  }
+  if(step===3){
+    if(!value||value.length<8||value.length>300){fail("API key looks invalid.");return;}
+    p.api_key=value;p.type="SMM API";p.active=true;
+    if(!editing){
+      var pid=next("PRV");p.id=pid;add("providers",pid);
+    }
+    save("provider_"+p.id,p);
+    Bot.sendInlineKeyboard([[{title:"🔌 Open Provider",command:"app admin_provider "+p.id},{title:"🛠 Admin Panel",command:"app admin"}]],"✅ Provider saved.\n\n"+p.name+" • "+p.id);return;
+  }
+  fail("Unknown provider step.");return;
+}
+
 if(state.kind==="admin_user_find"){
   if(!isUserId(value)){fail("Enter a numeric Telegram ID.");return;}
   Bot.runCommand("app admin_user "+value);return;
