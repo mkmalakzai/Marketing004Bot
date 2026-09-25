@@ -135,6 +135,23 @@ if(state.kind==="admin_provider_step"){
   fail("Unknown provider step.");return;
 }
 
+
+if(state.kind==="admin_provider_service_id"){
+  var pid=String(state.ref||"");
+  var p=read("provider_"+pid);
+  if(!p||p.deleted){fail("Provider not found.");return;}
+  var sid=String(value||"").trim();
+  var ok=sid.length>0&&sid.length<=20;
+  var si,ch;
+  for(si=0;si<sid.length;si++){ch=sid.charAt(si);if(ch<"0"||ch>"9"){ok=false;break;}}
+  if(!ok){fail("Send a numeric service ID.");return;}
+  var saved=read("provider_service_"+pid+"_"+sid);
+  if(saved){Bot.sendInlineKeyboard([[{title:"🔌 Provider",command:"app admin_provider "+pid}]],"⚠️ Service ID "+sid+" is already saved.");return;}
+  save("provider_service_"+pid+"_"+sid,{provider:pid,service:sid,name:"Service "+sid,active:true});
+  add("provider_services_"+pid,sid);
+  Bot.sendInlineKeyboard([[{title:"➕ Add Another",command:"app admin_provider_service_add "+pid},{title:"🔌 Provider",command:"app admin_provider "+pid}]],"✅ Service ID "+sid+" saved.");return;
+}
+
 if(state.kind==="admin_user_find"){
   if(!isUserId(value)){fail("Enter a numeric Telegram ID.");return;}
   Bot.runCommand("app admin_user "+value);return;
