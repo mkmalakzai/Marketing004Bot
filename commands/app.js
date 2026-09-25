@@ -198,8 +198,8 @@ if (action === "admin_cats" || action === "admin_services" || action === "admin_
 }
 if (action === "admin_add") {
   var type=id; if(["cat","srv","pkg","method","offer"].indexOf(type)<0)return;
-  var hint={cat:"Category name",srv:"Category ID | Service name | Description",pkg:"Service ID | Package name | Price USD | Delivery time | Required input | Description | manual",method:"Payment method name | Address/instructions",offer:"Offer title | Description | coupon code | discount percent (optional)"}[type];
-  ask("admin_add",type,"Send fields separated by | :\n"+hint);return;
+  var hint={cat:"We will add the category step by step.",srv:"We will ask for category, name and description one by one.",pkg:"We will ask for service, name, price, delivery, required input and description one by one.",method:"We will ask for method name and payment instructions separately.",offer:"We will ask for title, description, coupon and discount separately."}[type];
+  ask("admin_add",type,hint);return;
 }
 if (action === "admin_item") {var type=id,x=obj(key(type,args[2]));if(!x||x.deleted){Bot.runCommand("app "+itemSection(type));return;}show("🛠 "+x.id,itemDescription(x),[row(x.active?"⛔ Disable":"✅ Enable","admin_toggle "+type+" "+x.id),row("✏ Edit","admin_edit "+type+" "+x.id),row("🗑 Delete","admin_delete "+type+" "+x.id),row("◀ Items",itemSection(type))]);return;}
 if (action === "admin_toggle" || action === "admin_delete") {
@@ -209,7 +209,7 @@ if (action === "admin_toggle" || action === "admin_delete") {
   save(key(type,x.id),x);Bot.runCommand("app admin_item "+type+" "+x.id);return;
 }
 if (action === "admin_delete_confirm") {var type=id,x=obj(key(type,args[2]));if(!x||x.deleted){Bot.runCommand("app "+itemSection(type));return;}x.active=false;x.deleted=true;save(key(type,x.id),x);Bot.runCommand("app "+itemSection(type));return;}
-if (action === "admin_edit") {var type=id,x=obj(key(type,args[2]));if(!x||x.deleted)return;ask("admin_edit",type+":"+x.id,"Send the same | separated fields as when adding this item.\n\n"+itemDescription(x));return;}
+if (action === "admin_edit") {var type=id,x=obj(key(type,args[2]));if(!x||x.deleted)return;ask("admin_edit",type+":"+x.id,"✏ Edit "+x.id+" step by step. Current values:\n\n"+itemDescription(x));return;}
 if (action === "admin_orders" || action === "admin_deposits" || action === "admin_tickets") {
   var type={admin_orders:"order",admin_deposits:"deposit",admin_tickets:"ticket"}[action],ids=list({order:"orders",deposit:"deposits",ticket:"tickets"}[type]),b=[row("🔎 Find by ID","admin_find "+type)];
   for(var i=0;i<ids.length&&b.length<=20;i++){var x=obj(key(type,ids[i]));if(x)b.push(row(x.id+" • "+x.status,"admin_"+type+" "+x.id));}
