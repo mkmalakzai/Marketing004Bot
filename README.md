@@ -11,7 +11,7 @@ Test `/start` and **Admin Panel** using owner Telegram ID **6589090462**. This d
 ## Current working flows
 
 - User: menu, catalog navigation, package and order preview, wallet, manual deposit request with photo, order history, transaction history, offers display, stats, support tickets and account.
-- Admin: category/service/package add/edit/disable/delete (soft delete), order management and refunds, payment method management, manual deposit review, offer display, ticket replies, user ban/unban, additional admin IDs and basic broadcast (up to 100 registered users).
+- Admin: category/service/package add/edit/disable/delete (soft delete), order management and refunds, payment method management, manual deposit review, offer and one-use coupon management, ticket replies, user ban/unban, additional admin IDs and basic broadcast (up to 100 registered users).
 - USD balances are stored in integer cents. Deposits credit only when an admin approves; orders debit once upon confirmation; refunds credit once. Repeated button presses on completed actions are ignored.
 - The BOTBOX credit appears only in My Account.
 
@@ -24,4 +24,4 @@ Admin creation inputs use a pipe `|` between fields; the bot shows the required 
 
 BJS bot properties and counters are not transactional. Concurrent order/payment callbacks and provider interactions need an atomic external ledger before high-volume, real-money operation. The local tests cover common single-user flows and repeated clicks, but the bot has not been exercised in your live Bots.Business workspace. Test with non-real funds before enabling a public deposit address.
 
-The offers section displays admin announcements; coupon redemption and discounts are not implemented. Broadcast sends to at most 100 registered users in this version.
+Offers support announcements or an optional 1–90% coupon code. Each user can redeem a given coupon once. Broadcast sends to at most 100 registered users in this version.
