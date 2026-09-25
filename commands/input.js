@@ -255,7 +255,18 @@ if(state.kind==="admin_add"||state.kind==="admin_edit"||state.kind==="admin_item
     if(step===3){var pc=money(value);if(!pc){fail("Invalid price.");return;}x.price=pc;stepAsk(4,"⏱ Send delivery time, e.g. 1–24 hours.");return;}
     if(step===4){if(!value||value.length>100){fail("Delivery must be 1–100 characters.");return;}x.delivery=value;stepAsk(5,"🔗 What input must the user send? e.g. Post link");return;}
     if(step===5){if(!value||value.length>100){fail("Required input must be 1–100 characters.");return;}x.requirement=value;stepAsk(6,"📝 Send package description.");return;}
-    if(!value||value.length>300){fail("Description must be 1–300 characters.");return;}x.description=value;x.mode="manual";finish();return;
+    if(step===6){
+      if(!value||value.length>300){fail("Description must be 1–300 characters.");return;}
+      x.description=value;
+      if(x.mode==="api"){stepAsk(7,"🔢 Send fixed quantity for this API package.\n\nExample: 1000");return;}
+      x.mode="manual";finish();return;
+    }
+    if(step===7){
+      var qty=Number(value),goodQty=qty==Math.floor(qty)&&qty>0&&qty<=10000000;
+      if(!goodQty){fail("Quantity must be a whole number from 1 to 10000000.");return;}
+      x.quantity=qty;x.mode="api";finish();return;
+    }
+    fail("Unknown package step.");return;
   }
   if(type==="method"){
     if(step===0){stepAsk(1,"💳 Send payment method name.");return;}
