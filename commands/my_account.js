@@ -1,3 +1,12 @@
+/*CMD
+  command: my_account
+  help:
+  need_reply: false
+  auto_retry_time:
+  folder: ACCOUNT
+  aliases:
+CMD*/
+
 // Bots.Business command: my_account
 var joined = User.getProperty("tpl004_joined_at") || "—";
 var orders = Number(User.getProperty("tpl004_total_orders") || 0);
