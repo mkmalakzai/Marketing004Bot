@@ -177,7 +177,44 @@ if (action === "ticket_input") {ask("ticket","","Describe your issue in one mess
 if (action === "tickets") {var ids=list("user_tickets_"+uid),b=[];for(var i=0;i<ids.length&&i<15;i++){var t=obj(key("ticket",ids[i]));if(t)b.push(row(t.id+" • "+t.status,"ticket "+t.id));}show("📨 MY TICKETS",b.length?"Choose a ticket.":"No tickets yet.",b);return;}
 if (action === "ticket") {var t=obj(key("ticket",id));if(!belong(t)&&!admin){Bot.runCommand("app home");return;}show("🎫 "+t.id,"Status: "+t.status+"\nMessage: "+safe(t.message)+"\nReply: "+safe(t.reply||"—"),admin?[row("↩ Reply","admin_ticket_reply "+id)]:[row("◀ Tickets","tickets")]);return;}
 if (!admin) {show("🔒 ADMIN ACCESS","This area is available to authorized admins only.",[]);return;}
-if (action === "admin") {show("🛠 ADMIN PANEL","Users: "+list("users").length+"\nOrders: "+list("orders").length+"\nDeposits: "+list("deposits").length+"\nTickets: "+list("tickets").length,[row("📁 Categories","admin_cats"),row("🚀 Services","admin_services"),row("📦 Packages","admin_packages"),row("🛒 Orders","admin_orders"),row("💳 Deposits","admin_deposits"),row("💰 Payment Methods","admin_methods"),row("🎁 Offers","admin_offers"),row("🎫 Tickets","admin_tickets"),row("👥 Users","admin_users"),row("💵 Wallet Tools","admin_wallet"),row("📢 Broadcast","admin_broadcast"),row("⚙ Settings","admin_settings")]);return;}
+if (action === "admin") {show("🛠 ADMIN PANEL","Users: "+list("users").length+"\nOrders: "+list("orders").length+"\nDeposits: "+list("deposits").length+"\nTickets: "+list("tickets").length+"\nProviders: "+list("providers").length,[row("📁 Categories","admin_cats"),row("🚀 Services","admin_services"),row("📦 Packages","admin_packages"),row("🔌 SMM Providers","admin_providers"),row("🛒 Orders","admin_orders"),row("💳 Deposits","admin_deposits"),row("💰 Payment Methods","admin_methods"),row("🎁 Offers","admin_offers"),row("🎫 Tickets","admin_tickets"),row("👥 Users","admin_users"),row("💵 Wallet Tools","admin_wallet"),row("📢 Broadcast","admin_broadcast"),row("⚙ Settings","admin_settings")]);return;}
+
+if(action==="admin_providers"){
+  var ids=list("providers"),b=[row("➕ Add Provider","admin_provider_add")];
+  for(var i=0;i<ids.length&&b.length<=20;i++){
+    var p=obj(key("provider",ids[i]));
+    if(p&&!p.deleted)b.push(row((p.active?"✅ ":"⛔ ")+p.id+" "+p.name,"admin_provider "+p.id));
+  }
+  show("🔌 SMM PROVIDERS",b.length>1?"Manage API providers.":"No providers yet.",b);return;
+}
+if(action==="admin_provider_add"){
+  User.setProperty("t4_pending",JSON.stringify({kind:"admin_provider_step",ref:{step:1,data:{}}}),"string");
+  Bot.sendInlineKeyboard([[{title:"✖ Cancel",command:"app admin_providers"}]],"🔌 Send provider name.\n\nExample: Followiz");
+  Bot.runCommand("input",{waitForAnswer:true});return;
+}
+if(action==="admin_provider"){
+  var p=obj(key("provider",id));if(!p||p.deleted){Bot.runCommand("app admin_providers");return;}
+  var masked=p.api_key?"••••••"+String(p.api_key).slice(-4):"—";
+  var text="Name: "+p.name+"\nStatus: "+(p.active?"Enabled":"Disabled")+"\nAPI URL: "+p.api_url+"\nAPI Key: "+masked+"\nType: "+(p.type||"SMM API");
+  show("🔌 "+p.id,text,[row(p.active?"⛔ Disable":"✅ Enable","admin_provider_toggle "+p.id),row("✏ Edit","admin_provider_edit "+p.id),row("🗑 Delete","admin_provider_delete "+p.id),row("◀ Providers","admin_providers")]);return;
+}
+if(action==="admin_provider_toggle"){
+  var p=obj(key("provider",id));if(!p||p.deleted)return;p.active=!p.active;save(key("provider",id),p);Bot.runCommand("app admin_provider "+id);return;
+}
+if(action==="admin_provider_delete"){
+  var p=obj(key("provider",id));if(!p||p.deleted)return;
+  show("🗑 DELETE PROVIDER","Delete "+p.name+"? Existing package/order records are kept.",[row("✅ Delete","admin_provider_delete_confirm "+id),row("✖ Cancel","admin_provider "+id)]);return;
+}
+if(action==="admin_provider_delete_confirm"){
+  var p=obj(key("provider",id));if(!p||p.deleted){Bot.runCommand("app admin_providers");return;}p.active=false;p.deleted=true;save(key("provider",id),p);Bot.runCommand("app admin_providers");return;
+}
+if(action==="admin_provider_edit"){
+  var p=obj(key("provider",id));if(!p||p.deleted)return;
+  User.setProperty("t4_pending",JSON.stringify({kind:"admin_provider_step",ref:{step:1,id:p.id,editing:true,data:p}}),"string");
+  Bot.sendInlineKeyboard([[{title:"✖ Cancel",command:"app admin_provider "+p.id}]],"✏ Send provider name.\n\nCurrent: "+p.name);
+  Bot.runCommand("input",{waitForAnswer:true});return;
+}
+
 if (action === "admin_users") {var ids=list("users"),b=[row("🔎 Find by Telegram ID","admin_user_find")];for(var i=ids.length-1;i>=0&&b.length<=20;i--)b.push(row("👤 "+ids[i],"admin_user "+ids[i]));show("👥 USERS","Recently joined users.",b);return;}
 if (action === "admin_user_find") {ask("admin_user_find","","Enter a numeric Telegram user ID.");return;}
 if (action === "admin_user") {var who=id;if(!isUserId(who)||get("user_seen_"+who,"no")!=="yes"){show("👥 USERS","User not found.",[row("◀ Users","admin_users")]);return;}var uo=list("user_orders_"+who),ud=list("user_deposits_"+who),ut=list("user_tickets_"+who),done=0,spent=0;for(var i=0;i<uo.length;i++){var ox=obj(key("order",uo[i]));if(ox&&ox.status!=="Refunded"&&ox.status!=="Cancelled"){spent+=ox.price;if(ox.status==="Completed")done++;}}show("👤 USER "+who,"Status: "+(get("ban_"+who,"no")==="yes"?"Banned":"Active")+"\nBalance: "+money(wallet(who))+"\nOrders: "+uo.length+"\nCompleted: "+done+"\nDeposits: "+ud.length+"\nTickets: "+ut.length+"\nSpent: "+money(spent),[row("➕ Add Balance","admin_wallet_add "+who),row("➖ Remove Balance","admin_wallet_remove "+who),row("📦 User Orders","admin_user_orders "+who),row("💳 User Deposits","admin_user_deposits "+who),row("🚫 Ban","admin_ban "+who),row("✅ Unban","admin_unban "+who)]);return;}
@@ -260,6 +297,6 @@ if (action === "admin_deposit_status") {var d=obj(key("deposit",id)),status=args
 if (action === "admin_ticket") {var t=obj(key("ticket",id));if(!t)return;var b=[row("↩ Reply","admin_ticket_reply "+id),row(t.status==="Closed"?"🔓 Reopen":"✅ Close","admin_ticket_toggle "+id),row("👤 User","admin_user "+t.user)];show("🎫 "+id,"User: "+t.user+"\nMessage: "+safe(t.message)+"\nStatus: "+t.status+"\nReply: "+safe(t.reply||"—"),b);return;}
 if(action==="admin_ticket_toggle"){var t=obj(key("ticket",id));if(!t)return;t.status=t.status==="Closed"?"Open":"Closed";save(key("ticket",id),t);notify(t.user,"🎫 Ticket "+id+" is now "+t.status+".");Bot.runCommand("app admin_ticket "+id);return;}
 if (action === "admin_ticket_reply") {if(!obj(key("ticket",id)))return;ask("admin_reply",id,"Send the reply for ticket "+id);return;}
-if (action === "admin_settings") {show("⚙ SETTINGS","Store: "+get("store_name","MARKETING & PROMOTION")+"\nOwner: "+owner+"\nAdditional admins: "+(get("admins","")||"—")+"\nSetup: Complete\nCurrency: USD\nFulfillment: Manual",uid===owner?[row("👥 Manage Admins","admin_setting admins"),row("✏ Store Name","admin_setting store_name")]:[]);return;}
+if (action === "admin_settings") {show("⚙ SETTINGS","Store: "+get("store_name","MARKETING & PROMOTION")+"\nOwner: "+owner+"\nAdditional admins: "+(get("admins","")||"—")+"\nSetup: Complete\nCurrency: USD\nFulfillment: Manual + API-ready",uid===owner?[row("👥 Manage Admins","admin_setting admins"),row("✏ Store Name","admin_setting store_name")]:[]);return;}
 if (action === "admin_setting") {if(uid!==owner||["admins","store_name"].indexOf(id)<0)return;ask("admin_setting",id,id==="admins"?"Send comma-separated Telegram IDs, or - to remove all additional admins.":"Send the store name (2–60 characters).");return;}
 Bot.runCommand("app home");
