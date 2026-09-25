@@ -34,7 +34,9 @@ function pairButtons(buttons) {
   for (var k = 0; k < flat.length; k += 2) { rows.push(flat.slice(k, k + 2)); }
   return rows;
 }
-function escapeMarkdown(value) { return String(value).replace(/([_*`\[\]\\])/g, "\\$1"); }
+function escapeMarkdown(value) {
+  return String(value || "");
+}
 function show(title, lines, buttons) {
   if (action.indexOf("admin_") === 0) { buttons.push(row("◀ Admin Panel", "admin")); }
   buttons.push(row("🏠 Main Menu", "home"));
@@ -46,10 +48,35 @@ function notifyAdmins(message) { var seen={}; if(owner){notify(owner,message);se
 function wallet(who) { return Number(get("wallet_" + who, 0)); }
 function entries(who, type, id, delta) { var a = list("ledger_" + who); a.unshift({ at: new Date().toISOString(), type: type, ref: id, cents: delta }); saveList("ledger_" + who, a.slice(0, 100)); }
 function setWallet(who, cents, type, ref, delta) { put("wallet_" + who, cents); entries(who, type, ref, delta); }
-function amount(text) { var s = String(text || "").trim(); if (!/^(0|[1-9][0-9]{0,5})(\.[0-9]{1,2})?$/.test(s)) return null; var p=s.split("."); var n=Number(p[0])*100+Number(((p[1]||"")+"00").slice(0,2)); return n > 0 ? n : null; }
+function amount(text) {
+  var s=String(text||"").trim();
+  if(!s){return null;}
+  var dots=0;
+  var i;
+  var ch;
+  for(i=0;i<s.length;i++){
+    ch=s.charAt(i);
+    if(ch=="."){dots=dots+1;if(dots>1){return null;}}
+    else if(ch<"0"||ch>"9"){return null;}
+  }
+  var p=s.split(".");
+  if(!p[0]||p[0].length>6){return null;}
+  if(p.length>1&&(p[1].length<1||p[1].length>2)){return null;}
+  var n=Number(p[0])*100+Number(((p[1]||"")+"00").slice(0,2));
+  if(n>0){return n;}
+  return null;
+}
 function safe(s) { return String(s || "").slice(0, 700); }
 function ask(kind, ref, label) { User.setProperty("t4_pending", JSON.stringify({ kind: kind, ref: ref }), "string"); var buttons=kind.indexOf("admin_")===0?[[{title:"◀ Admin Panel",command:"/admin"},{title:"✖ Cancel",command:"app home"}]]:row("✖ Cancel","home"); Bot.sendInlineKeyboard(buttons, escapeMarkdown(label) + "\n\nSend one text reply. /start cancels the step."); Bot.handleNextCommand("input"); }
 function belong(o) { return o && String(o.user) === uid; }
+function isUserId(v) {
+  v=String(v||"");
+  if(v.length<5||v.length>16){return false;}
+  var i;
+  var ch;
+  for(i=0;i<v.length;i++){ch=v.charAt(i);if(ch<"0"||ch>"9"){return false;}}
+  return true;
+}
 function itemSection(type) { return {cat:"admin_cats",srv:"admin_services",pkg:"admin_packages",method:"admin_methods",offer:"admin_offers"}[type] || "admin"; }
 function itemDescription(x) {
   var lines = ["ID: " + x.id, "Name: " + (x.name || x.title), "Status: " + (x.deleted ? "Deleted" : x.active ? "Enabled" : "Disabled")];
