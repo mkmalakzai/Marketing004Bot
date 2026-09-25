@@ -20,4 +20,4 @@ if(ctx&&ctx.order){
   buttons=[[{title:"🛒 Open Order",command:"app admin_order "+ctx.order},{title:"🛠 Admin Panel",command:"app admin"}]];
 }
 
-Bot.sendInlineKeyboard(buttons,"❌ Provider status request failed. Try again in a moment.");
+Bot.sendInlineKeyboard(buttons,"❌ STATUS CHECK FAILED\n\nThe provider did not return a valid status. Please try again in a moment.");
