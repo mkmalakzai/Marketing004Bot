@@ -90,10 +90,6 @@ function itemDescription(x) {
   if (x.provider) { lines.push("Provider: " + x.provider); }
   if (x.provider_service) { lines.push("Provider Service: " + x.provider_service); }
   if (x.quantity) { lines.push("Quantity: " + x.quantity); }
-  if (x.mode) { lines.push("Mode: " + x.mode); }
-  if (x.provider) { lines.push("Provider: " + x.provider); }
-  if (x.provider_service) { lines.push("Provider Service: " + x.provider_service); }
-  if (x.quantity) { lines.push("Quantity: " + x.quantity); }
   if (x.address) { lines.push("Payment instructions: " + x.address); }
   if (x.code) { lines.push("Coupon: " + x.code + " (" + x.percent + "% off)"); }
   return lines.join("\n");
