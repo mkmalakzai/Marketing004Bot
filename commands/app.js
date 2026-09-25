@@ -71,21 +71,28 @@ if (action === "order_input") { var p=obj(key("pkg",id)); if(!p || !p.active){Bo
 if (action === "order_preview") {
   var draft=User.getProperty("t4_order_draft"); try{draft=JSON.parse(draft);}catch(e){draft=null;}
   var p=draft && obj(key("pkg",draft.pkg)); if(!p || !p.active){Bot.runCommand("app services");return;}
-  show("🛒 ORDER PREVIEW",p.name+"\nPrice: "+money(p.price)+"\nYour balance: "+money(wallet(uid))+"\nDetails: "+safe(draft.details),[row("✅ Pay & Order","order_confirm"),row("✖ Cancel","services")]); return;
+  var offer=draft.offer&&obj(key("offer",draft.offer));if(!offer||!offer.active||!offer.percent)offer=null;
+  var discount=offer?Math.floor(p.price*offer.percent/100):0;
+  show("🛒 ORDER PREVIEW",p.name+"\nPrice: "+money(p.price)+(offer?"\nCoupon: "+offer.code+" (−"+money(discount)+")":"")+"\nTotal: "+money(p.price-discount)+"\nYour balance: "+money(wallet(uid))+"\nDetails: "+safe(draft.details),[row("🎟 Enter Coupon","order_coupon"),row("✅ Pay & Order","order_confirm"),row("✖ Cancel","services")]); return;
 }
+if (action === "order_coupon") {var draft=User.getProperty("t4_order_draft");if(!draft){Bot.runCommand("app services");return;}ask("coupon","","Enter your coupon code.");return;}
 if (action === "order_confirm") {
   var draft=User.getProperty("t4_order_draft"); try{draft=JSON.parse(draft);}catch(e){draft=null;}
   var p=draft && obj(key("pkg",draft.pkg)), s=p && obj(key("srv",p.srv));
   if(!draft || !p || !p.active || !s || !s.active){Bot.runCommand("app services");return;}
-  if(wallet(uid)<p.price){show("💰 INSUFFICIENT BALANCE","Price: "+money(p.price)+"\nBalance: "+money(wallet(uid)),[row("Add Funds","deposit_methods")]);return;}
+  var offer=draft.offer&&obj(key("offer",draft.offer));
+  if(draft.offer&&(!offer||!offer.active||!offer.percent||get("coupon_used_"+offer.id+"_"+uid,"no")==="yes")){show("⚠️ COUPON EXPIRED","Open order preview and select another coupon.",[row("◀ Preview","order_preview")]);return;}
+  var finalPrice=p.price-(offer?Math.floor(p.price*offer.percent/100):0);
+  if(wallet(uid)<finalPrice){show("💰 INSUFFICIENT BALANCE","Total: "+money(finalPrice)+"\nBalance: "+money(wallet(uid)),[row("Add Funds","deposit_methods")]);return;}
   User.setProperty("t4_order_draft","","string");
-  var oid=newId("ORD"); var order={id:oid,user:uid,package:p.id,name:p.name,price:p.price,details:draft.details,status:"Pending",mode:p.mode,created:new Date().toISOString()};
+  var oid=newId("ORD"); var order={id:oid,user:uid,package:p.id,name:p.name,price:finalPrice,original_price:p.price,coupon:offer?offer.code:"",details:draft.details,status:"Pending",mode:p.mode,created:new Date().toISOString()};
   save(key("order",oid),order);
   var all=list("orders");all.unshift(oid);saveList("orders",all);
   var mine=list("user_orders_"+uid);mine.unshift(oid);saveList("user_orders_"+uid,mine);
-  setWallet(uid,wallet(uid)-p.price,"Order",oid,-p.price);
-  notify(owner,"🛒 New order "+oid+"\n"+p.name+"\nUser: "+uid+"\nPrice: "+money(p.price));
-  show("✅ ORDER PLACED",oid+"\nStatus: Pending\nPrice: "+money(p.price),[row("📦 View Order","order "+oid)]); return;
+  setWallet(uid,wallet(uid)-finalPrice,"Order",oid,-finalPrice);
+  if(offer)put("coupon_used_"+offer.id+"_"+uid,"yes");
+  notify(owner,"🛒 New order "+oid+"\n"+p.name+"\nUser: "+uid+"\nPrice: "+money(finalPrice));
+  show("✅ ORDER PLACED",oid+"\nStatus: Pending\nPrice: "+money(finalPrice),[row("📦 View Order","order "+oid)]); return;
 }
 if (action === "my_orders") {
   var ids=list("user_orders_"+uid), buttons=[]; for(var i=0;i<ids.length && i<15;i++){ var o=obj(key("order",ids[i]));if(o)buttons.push(row(o.id+" • "+o.status,"order "+o.id)); }
@@ -97,7 +104,7 @@ if (action === "ledger") {var a=list("ledger_"+uid), lines=[];for(var i=0;i<a.le
 if (action === "deposit_methods") {var ids=list("methods"),b=[];for(var i=0;i<ids.length;i++){var m=obj(key("method",ids[i]));if(m&&m.active)b.push(row(m.name,"deposit "+m.id));}show("➕ ADD FUNDS",b.length?"Choose a method.":"No deposit methods enabled.",b);return;}
 if (action === "deposit") {var m=obj(key("method",id));if(!m||!m.active){Bot.runCommand("app deposit_methods");return;}show("💳 "+m.name,"Address / instructions:\n"+m.address+"\n\nPay first, then submit the exact amount and screenshot. Only the admin can approve it.",[row("✅ I Have Paid","deposit_amount "+id)]);return;}
 if (action === "deposit_amount") {var m=obj(key("method",id));if(!m||!m.active){Bot.runCommand("app deposit_methods");return;}ask("deposit_amount",id,"Enter amount in USD, e.g. 10.50");return;}
-if (action === "offers") {var ids=list("offers"),lines=[];for(var i=0;i<ids.length;i++){var o=obj(key("offer",ids[i]));if(o&&o.active)lines.push("🎁 "+o.title+"\n"+o.description);}show("🎁 OFFERS",lines.join("\n\n")||"No active offers.",[]);return;}
+if (action === "offers") {var ids=list("offers"),lines=[];for(var i=0;i<ids.length;i++){var o=obj(key("offer",ids[i]));if(o&&o.active)lines.push("🎁 "+o.title+"\n"+o.description+(o.percent?"\nCode: "+o.code+" ("+o.percent+"% off, once per user)":""));}show("🎁 OFFERS",lines.join("\n\n")||"No active offers.",[]);return;}
 if (action === "stats") {var ids=list("user_orders_"+uid),spent=0,done=0;for(var i=0;i<ids.length;i++){var o=obj(key("order",ids[i]));if(o&&o.status!=="Refunded"){spent+=o.price;if(o.status==="Completed")done++;}}show("📊 MY STATS","Orders: "+ids.length+"\nCompleted: "+done+"\nTotal spent: "+money(spent),[]);return;}
 if (action === "support") {show("🎫 SUPPORT","Send a new ticket or view your recent tickets.",[row("✍ New Ticket","ticket_input"),row("📨 My Tickets","tickets")]);return;}
 if (action === "ticket_input") {ask("ticket","","Describe your issue in one message.");return;}
@@ -121,7 +128,7 @@ if (action === "admin_cats" || action === "admin_services" || action === "admin_
 }
 if (action === "admin_add") {
   var type=id; if(["cat","srv","pkg","method","offer"].indexOf(type)<0)return;
-  var hint={cat:"Category name",srv:"Category ID | Service name | Description",pkg:"Service ID | Package name | Price USD | Delivery time | Required input | Description | manual",method:"Payment method name | Address/instructions",offer:"Offer title | Description"}[type];
+  var hint={cat:"Category name",srv:"Category ID | Service name | Description",pkg:"Service ID | Package name | Price USD | Delivery time | Required input | Description | manual",method:"Payment method name | Address/instructions",offer:"Offer title | Description | coupon code | discount percent (optional)"}[type];
   ask("admin_add",type,"Send fields separated by | :\n"+hint);return;
 }
 if (action === "admin_item") {var type=id,x=obj(key(type,args[2]));if(!x){Bot.runCommand("app admin");return;}show("🛠 "+x.id,JSON.stringify(x),[row(x.active?"⛔ Disable":"✅ Enable","admin_toggle "+type+" "+x.id),row("✏ Edit","admin_edit "+type+" "+x.id),row("🗑 Delete","admin_delete "+type+" "+x.id)]);return;}
