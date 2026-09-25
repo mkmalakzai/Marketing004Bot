@@ -6,10 +6,15 @@
 CMD*/
 
 // TPL-004 routing. All money is stored as integer USD cents.
+if (!user || !user.telegramid) { return; }
+if (Bot.getProperty("t4_setup_done") !== "yes" || !Bot.getProperty("t4_owner")) {
+  Bot.runCommand("/setup");
+  return;
+}
 var uid = String(user.telegramid);
 var args = String(typeof params === "undefined" ? "" : params || "").split(" ");
 var action = args[0] || "home", id = args[1] || "";
-var owner = String(Bot.getProperty("t4_owner") || "6589090462");
+var owner = String(Bot.getProperty("t4_owner"));
 var admins = String(Bot.getProperty("t4_admins") || "").split(",");
 var admin = uid === owner || admins.indexOf(uid) >= 0;
 function get(k, fallback) { var v = Bot.getProperty("t4_" + k); return v === undefined || v === null ? fallback : v; }
@@ -21,7 +26,20 @@ function save(k, v) { put(k, JSON.stringify(v)); }
 function key(type, n) { return type + "_" + n; }
 function newId(type) { var n = Number(get("seq_" + type, 0)) + 1; put("seq_" + type, n); return type + "-" + n; }
 function row(title, command) { return [{ title: title, command: "app " + command }]; }
-function show(title, lines, buttons) { buttons.push(row("🏠 Main Menu", "home")); Bot.sendInlineKeyboard(buttons, title + "\n\n" + lines); }
+function pairButtons(buttons) {
+  var flat = [], rows = [];
+  for (var i = 0; i < buttons.length; i++) {
+    for (var j = 0; j < buttons[i].length; j++) { flat.push(buttons[i][j]); }
+  }
+  for (var k = 0; k < flat.length; k += 2) { rows.push(flat.slice(k, k + 2)); }
+  return rows;
+}
+function escapeMarkdown(value) { return String(value).replace(/([_*`\[\]\\])/g, "\\$1"); }
+function show(title, lines, buttons) {
+  if (action.indexOf("admin_") === 0) { buttons.push(row("◀ Admin Panel", "admin")); }
+  buttons.push(row("🏠 Main Menu", "home"));
+  Bot.sendInlineKeyboard(pairButtons(buttons), "*" + escapeMarkdown(title) + "*\n\n" + escapeMarkdown(lines));
+}
 function money(c) { return "$" + (Number(c || 0) / 100).toFixed(2); }
 function notify(who, message) { Api.sendMessage({ chat_id: who, text: message }); }
 function wallet(who) { return Number(get("wallet_" + who, 0)); }
@@ -29,11 +47,28 @@ function entries(who, type, id, delta) { var a = list("ledger_" + who); a.unshif
 function setWallet(who, cents, type, ref, delta) { put("wallet_" + who, cents); entries(who, type, ref, delta); }
 function amount(text) { var s = String(text || "").trim(); if (!/^(0|[1-9][0-9]{0,5})(\.[0-9]{1,2})?$/.test(s)) return null; var p=s.split("."); var n=Number(p[0])*100+Number(((p[1]||"")+"00").slice(0,2)); return n > 0 ? n : null; }
 function safe(s) { return String(s || "").slice(0, 700); }
-function ask(kind, ref, label) { User.setProperty("t4_pending", JSON.stringify({ kind: kind, ref: ref }), "string"); Bot.sendInlineKeyboard(row("✖ Cancel", "home"), label + "\n\nSend one text reply. /start cancels the step."); Bot.handleNextCommand("input"); }
+function ask(kind, ref, label) { User.setProperty("t4_pending", JSON.stringify({ kind: kind, ref: ref }), "string"); var buttons=kind.indexOf("admin_")===0?[[{title:"◀ Admin Panel",command:"/admin"},{title:"✖ Cancel",command:"app home"}]]:row("✖ Cancel","home"); Bot.sendInlineKeyboard(buttons, escapeMarkdown(label) + "\n\nSend one text reply. /start cancels the step."); Bot.handleNextCommand("input"); }
 function belong(o) { return o && String(o.user) === uid; }
+function itemSection(type) { return {cat:"admin_cats",srv:"admin_services",pkg:"admin_packages",method:"admin_methods",offer:"admin_offers"}[type] || "admin"; }
+function itemDescription(x) {
+  var lines = ["ID: " + x.id, "Name: " + (x.name || x.title), "Status: " + (x.deleted ? "Deleted" : x.active ? "Enabled" : "Disabled")];
+  if (x.cat) { lines.push("Category: " + x.cat); }
+  if (x.srv) { lines.push("Service: " + x.srv); }
+  if (x.price !== undefined) { lines.push("Price: " + money(x.price)); }
+  if (x.delivery) { lines.push("Delivery: " + x.delivery); }
+  if (x.requirement) { lines.push("Required details: " + x.requirement); }
+  if (x.description) { lines.push("Description: " + x.description); }
+  if (x.address) { lines.push("Payment instructions: " + x.address); }
+  if (x.code) { lines.push("Coupon: " + x.code + " (" + x.percent + "% off)"); }
+  return lines.join("\n");
+}
 if (get("ban_" + uid, "no") === "yes" && !admin && ["support","ticket_input","tickets","ticket"].indexOf(action)<0) { Bot.sendInlineKeyboard(row("🎫 Support", "support"), "🚫 Your account is restricted."); return; }
 
 if (action === "home") {
+  User.setProperty("t4_pending", "", "string");
+  User.setProperty("t4_order_draft", "", "string");
+  User.setProperty("t4_deposit_draft", "", "string");
+  User.setProperty("t4_broadcast_draft", "", "string");
   var b = [
     [{title:"🚀 Services",command:"app services"},{title:"📦 My Orders",command:"app my_orders"}],
     [{title:"💰 Balance",command:"app balance"},{title:"🎁 Offers",command:"app offers"}],
@@ -41,7 +76,7 @@ if (action === "home") {
     row("👤 My Account", "account")
   ];
   if (admin) b.push(row("🛠 Admin Panel", "admin"));
-  Bot.sendInlineKeyboard(b, "🏠 MARKETING & PROMOTION\n\nChoose an option."); return;
+  Bot.sendInlineKeyboard(pairButtons(b), "🏠 *" + escapeMarkdown(get("store_name", "MARKETING & PROMOTION")) + "*\n\nChoose an option."); return;
 }
 if (action === "account") {
   show("👤 MY ACCOUNT", "User ID: " + uid + "\nOrders: " + list("user_orders_" + uid).length + "\nBalance: " + money(wallet(uid)) + "\n\nPowered by BOTBOX • @BotboxOfficial", []); return;
@@ -112,7 +147,7 @@ if (action === "support") {show("🎫 SUPPORT","Send a new ticket or view your r
 if (action === "ticket_input") {ask("ticket","","Describe your issue in one message.");return;}
 if (action === "tickets") {var ids=list("user_tickets_"+uid),b=[];for(var i=0;i<ids.length&&i<15;i++){var t=obj(key("ticket",ids[i]));if(t)b.push(row(t.id+" • "+t.status,"ticket "+t.id));}show("📨 MY TICKETS",b.length?"Choose a ticket.":"No tickets yet.",b);return;}
 if (action === "ticket") {var t=obj(key("ticket",id));if(!belong(t)&&!admin){Bot.runCommand("app home");return;}show("🎫 "+t.id,"Status: "+t.status+"\nMessage: "+safe(t.message)+"\nReply: "+safe(t.reply||"—"),admin?[row("↩ Reply","admin_ticket_reply "+id)]:[row("◀ Tickets","tickets")]);return;}
-if (!admin) {Bot.runCommand("app home");return;}
+if (!admin) {show("🔒 ADMIN ACCESS","This area is available to authorized admins only.",[]);return;}
 if (action === "admin") {show("🛠 ADMIN PANEL","Users: "+list("users").length+"\nOrders: "+list("orders").length+"\nDeposits: "+list("deposits").length,[row("📁 Categories","admin_cats"),row("🚀 Services","admin_services"),row("📦 Packages","admin_packages"),row("🛒 Orders","admin_orders"),row("💳 Deposits","admin_deposits"),row("💰 Payment Methods","admin_methods"),row("🎁 Offers","admin_offers"),row("🎫 Tickets","admin_tickets"),row("👥 Users","admin_users"),row("📢 Broadcast","admin_broadcast"),row("⚙ Settings","admin_settings")]);return;}
 if (action === "admin_users") {var ids=list("users"),b=[row("🔎 Find by Telegram ID","admin_user_find")];for(var i=ids.length-1;i>=0&&b.length<=20;i--)b.push(row("👤 "+ids[i],"admin_user "+ids[i]));show("👥 USERS","Recently joined users.",b);return;}
 if (action === "admin_user_find") {ask("admin_user_find","","Enter a numeric Telegram user ID.");return;}
@@ -125,7 +160,7 @@ if (action === "admin_broadcast_send") {if(uid!==owner)return;var msg=User.getPr
 if (action === "admin_cats" || action === "admin_services" || action === "admin_packages" || action === "admin_methods" || action === "admin_offers") {
   var typ={admin_cats:"cat",admin_services:"srv",admin_packages:"pkg",admin_methods:"method",admin_offers:"offer"}[action];
   var plural={cat:"cats",srv:"services",pkg:"packages",method:"methods",offer:"offers"}[typ],ids=list(plural),b=[row("➕ Add","admin_add "+typ)];
-  for(var i=0;i<ids.length&&i<30;i++){var x=obj(key(typ,ids[i]));if(x)b.push(row((x.active?"✅ ":"⛔ ")+x.id+" "+(x.name||x.title),"admin_item "+typ+" "+x.id));}
+  for(var i=0;i<ids.length&&b.length<=30;i++){var x=obj(key(typ,ids[i]));if(x&&!x.deleted)b.push(row((x.active?"✅ ":"⛔ ")+x.id+" "+(x.name||x.title),"admin_item "+typ+" "+x.id));}
   show("🛠 "+plural.toUpperCase(),"Add or edit an item.",b);return;
 }
 if (action === "admin_add") {
@@ -133,13 +168,15 @@ if (action === "admin_add") {
   var hint={cat:"Category name",srv:"Category ID | Service name | Description",pkg:"Service ID | Package name | Price USD | Delivery time | Required input | Description | manual",method:"Payment method name | Address/instructions",offer:"Offer title | Description | coupon code | discount percent (optional)"}[type];
   ask("admin_add",type,"Send fields separated by | :\n"+hint);return;
 }
-if (action === "admin_item") {var type=id,x=obj(key(type,args[2]));if(!x){Bot.runCommand("app admin");return;}show("🛠 "+x.id,JSON.stringify(x),[row(x.active?"⛔ Disable":"✅ Enable","admin_toggle "+type+" "+x.id),row("✏ Edit","admin_edit "+type+" "+x.id),row("🗑 Delete","admin_delete "+type+" "+x.id)]);return;}
+if (action === "admin_item") {var type=id,x=obj(key(type,args[2]));if(!x||x.deleted){Bot.runCommand("app "+itemSection(type));return;}show("🛠 "+x.id,itemDescription(x),[row(x.active?"⛔ Disable":"✅ Enable","admin_toggle "+type+" "+x.id),row("✏ Edit","admin_edit "+type+" "+x.id),row("🗑 Delete","admin_delete "+type+" "+x.id),row("◀ Items",itemSection(type))]);return;}
 if (action === "admin_toggle" || action === "admin_delete") {
-  var type=id,x=obj(key(type,args[2]));if(!x)return;
-  if(action==="admin_toggle")x.active=!x.active;else {x.active=false;x.deleted=true;}
+  var type=id,x=obj(key(type,args[2]));if(!x||x.deleted)return;
+  if(action==="admin_delete") { show("🗑 DELETE ITEM","Delete "+(x.name||x.title)+"? Previous order records will be kept.",[row("✅ Delete","admin_delete_confirm "+type+" "+x.id),row("✖ Cancel","admin_item "+type+" "+x.id)]);return; }
+  x.active=!x.active;
   save(key(type,x.id),x);Bot.runCommand("app admin_item "+type+" "+x.id);return;
 }
-if (action === "admin_edit") {var type=id,x=obj(key(type,args[2]));if(!x)return;ask("admin_edit",type+":"+x.id,"Send the same | separated fields as when adding this item. Current record:\n"+JSON.stringify(x));return;}
+if (action === "admin_delete_confirm") {var type=id,x=obj(key(type,args[2]));if(!x||x.deleted){Bot.runCommand("app "+itemSection(type));return;}x.active=false;x.deleted=true;save(key(type,x.id),x);Bot.runCommand("app "+itemSection(type));return;}
+if (action === "admin_edit") {var type=id,x=obj(key(type,args[2]));if(!x||x.deleted)return;ask("admin_edit",type+":"+x.id,"Send the same | separated fields as when adding this item.\n\n"+itemDescription(x));return;}
 if (action === "admin_orders" || action === "admin_deposits" || action === "admin_tickets") {
   var type={admin_orders:"order",admin_deposits:"deposit",admin_tickets:"ticket"}[action],ids=list({order:"orders",deposit:"deposits",ticket:"tickets"}[type]),b=[];
   for(var i=0;i<ids.length&&i<20;i++){var x=obj(key(type,ids[i]));if(x)b.push(row(x.id+" • "+x.status,"admin_"+type+" "+x.id));}
@@ -152,10 +189,11 @@ if (action === "admin_order_status") {
   if(status==="Refunded")setWallet(o.user,wallet(o.user)+o.price,"Refund",o.id,o.price);
   o.status=status;save(key("order",id),o);notify(o.user,"📦 Order "+id+" is now "+status+".");Bot.runCommand("app admin_order "+id);return;
 }
-if (action === "admin_deposit") {var d=obj(key("deposit",id));if(!d)return;show("💳 "+id,"User: "+d.user+"\nAmount: "+money(d.amount)+"\nMethod: "+d.method+"\nStatus: "+d.status+"\nProof file ID: "+d.proof,[row("✅ Approve","admin_deposit_status "+id+" Approved"),row("❌ Reject","admin_deposit_status "+id+" Rejected")]);return;}
+if (action === "admin_deposit") {var d=obj(key("deposit",id));if(!d)return;var db=[row("📷 View Proof","admin_proof "+id)];if(d.status==="Pending"){db.unshift(row("✅ Approve","admin_deposit_status "+id+" Approved"),row("❌ Reject","admin_deposit_status "+id+" Rejected"));}db.push(row("◀ Deposits","admin_deposits"));show("💳 "+id,"User: "+d.user+"\nAmount: "+money(d.amount)+"\nMethod: "+d.method+"\nStatus: "+d.status,db);return;}
+if (action === "admin_proof") {var d=obj(key("deposit",id));if(!d||!d.proof){show("📷 PROOF","No photo is attached to this request.",[row("◀ Deposits","admin_deposits")]);return;}Api.sendPhoto({chat_id:user.telegramid,photo:d.proof,caption:"Payment proof • "+d.id,reply_markup:{inline_keyboard:[[{text:"◀ Deposit",callback_data:"app admin_deposit "+id},{text:"🛠 Admin Panel",callback_data:"app admin"}]]}});return;}
 if (action === "admin_deposit_status") {var d=obj(key("deposit",id)),status=args[2];if(!d||d.status!=="Pending"||["Approved","Rejected"].indexOf(status)<0)return;d.status=status;save(key("deposit",id),d);if(status==="Approved")setWallet(d.user,wallet(d.user)+d.amount,"Deposit",id,d.amount);notify(d.user,"💳 Deposit "+id+": "+status+(status==="Approved"?" ("+money(d.amount)+" credited).":"."));Bot.runCommand("app admin_deposit "+id);return;}
 if (action === "admin_ticket") {var t=obj(key("ticket",id));if(!t)return;show("🎫 "+id,"User: "+t.user+"\nMessage: "+safe(t.message)+"\nStatus: "+t.status+"\nReply: "+safe(t.reply||"—"),[row("↩ Reply","admin_ticket_reply "+id)]);return;}
 if (action === "admin_ticket_reply") {if(!obj(key("ticket",id)))return;ask("admin_reply",id,"Send the reply for ticket "+id);return;}
-if (action === "admin_settings") {show("⚙ SETTINGS","Owner: "+owner+"\nAdditional admins: "+(get("admins","")||"—")+"\n\nAutomatic provider dispatch requires a separate integration review; this version processes orders manually.",[row("👥 Set Admin IDs","admin_setting admins")]);return;}
-if (action === "admin_setting") {if(uid!==owner||id!=="admins")return;ask("admin_setting",id,"Send comma-separated Telegram IDs. Only the owner should add admins.");return;}
+if (action === "admin_settings") {show("⚙ SETTINGS","Store: "+get("store_name","MARKETING & PROMOTION")+"\nOwner: "+owner+"\nAdditional admins: "+(get("admins","")||"—")+"\nSetup: Complete\nCurrency: USD\nFulfillment: Manual",uid===owner?[row("👥 Manage Admins","admin_setting admins"),row("✏ Store Name","admin_setting store_name")]:[]);return;}
+if (action === "admin_setting") {if(uid!==owner||["admins","store_name"].indexOf(id)<0)return;ask("admin_setting",id,id==="admins"?"Send comma-separated Telegram IDs, or - to remove all additional admins.":"Send the store name (2–60 characters).");return;}
 Bot.runCommand("app home");

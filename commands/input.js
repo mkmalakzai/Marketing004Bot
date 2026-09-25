@@ -6,6 +6,12 @@
 CMD*/
 
 // Text and proof replies for the TPL-004 app command.
+if (!user || !user.telegramid) { return; }
+if (Bot.getProperty("t4_setup_done") !== "yes" || !Bot.getProperty("t4_owner")) {
+  User.setProperty("t4_pending", "", "string");
+  Bot.runCommand("/setup");
+  return;
+}
 var uid=String(user.telegramid);
 var raw=User.getProperty("t4_pending"), state;
 try { state=JSON.parse(raw); } catch(e) { state=null; }
@@ -21,9 +27,14 @@ function add(k,id){var a=list(k);a.unshift(id);save(k,a);}
 function next(type){var n=Number(get("seq_"+type,0))+1;put("seq_"+type,n);return type+"-"+n;}
 function fail(text){Bot.sendInlineKeyboard([[{title:"🏠 Main Menu",command:"app home"}]],"⚠️ "+text);}
 function money(s){if(!/^(0|[1-9][0-9]{0,5})(\.[0-9]{1,2})?$/.test(s))return null;var p=s.split(".");var v=Number(p[0])*100+Number(((p[1]||"")+"00").slice(0,2));return v>0?v:null;}
-var owner=String(get("owner","6589090462")),admins=String(get("admins","")).split(",");
+var owner=String(get("owner","")),admins=String(get("admins","")).split(",");
 var admin=uid===owner||admins.indexOf(uid)>=0;
 if(value==="/start"){Bot.runCommand("/start");return;}
+if(value==="/admin"||value==="admin"){Bot.runCommand("/admin");return;}
+if(value==="/setup"||value==="setup"){Bot.runCommand("/setup");return;}
+if(get("ban_"+uid,"no")==="yes"&&!admin&&state.kind!=="ticket"){
+  fail("Your account is restricted. Contact Support from the main menu.");return;
+}
 
 if(state.kind==="order"){
   var p=read("pkg_"+state.ref),s=p&&read("srv_"+p.srv);
@@ -84,14 +95,17 @@ if(state.kind==="admin_reply"){
 if(state.kind==="admin_setting"){
   if(uid!==owner)return;
   if(state.ref==="admins"){
-    var ids=value.replace(/\s/g,"");if(ids&&!/^\d{5,16}(,\d{5,16})*$/.test(ids)){fail("Send comma-separated numeric Telegram IDs.");return;}
+    var ids=value==="-"?"":value.replace(/\s/g,"");if(ids&&!/^\d{5,16}(,\d{5,16})*$/.test(ids)){fail("Send comma-separated numeric Telegram IDs.");return;}
     put("admins",ids);
+  }else if(state.ref==="store_name"){
+    if(value.length<2||value.length>60||/[\r\n]/.test(value)){fail("Use a single line with 2–60 characters.");return;}
+    put("store_name",value);
   }else return;
   Bot.runCommand("app admin_settings");return;
 }
 if(state.kind==="admin_add"||state.kind==="admin_edit"){
   var editing=state.kind==="admin_edit",parts=state.ref.split(":"),type=parts[0],old=editing?read(type+"_"+parts[1]):null;
-  if(editing&&!old){fail("Item not found.");return;}
+  if(editing&&(!old||old.deleted)){fail("Item not found.");return;}
   var f=value.split("|").map(function(x){return x.trim();}),x=old||{};
   if(type==="cat"){
     if(f.length!==1||!f[0]||f[0].length>60){fail("Send one category name, up to 60 characters.");return;}

@@ -6,7 +6,20 @@ Bots.Business BJS source. Repository includes `bot.json` and importable `/*CMD .
 
 This repository is configured for `git@github.com:mkmalakzai/Marketing004Bot.git`. In Bots.Business open the bot → Sync → **Import from Git rep**. For first setup, add the public deploy key from Bots.Business to this repo's GitHub Settings → Deploy keys (read access). Export/back up the bot before importing changes; Git import replaces the installed command set. Reimport after each GitHub update; a push by itself is not a deployment.
 
-Test `/start` and **Admin Panel** using owner Telegram ID **6589090462**. This default ID is for the BOTBOX demo. A buyer must change the fallback ID in `commands/app.js` and `commands/input.js`, or set the bot property `t4_owner` to their own numeric Telegram ID before using this as their own template. The owner must send /start to the bot before receiving notifications.
+After importing this update, send **`/setup`**, tap **Complete Setup**, then send **`/admin`**. Both typed commands and the Admin Panel button work. The `admin` and `setup` aliases also work without a leading slash. Setup is required for the app and reply handlers; an old menu button cannot bypass it.
+
+The authorized initial owner of this BOTBOX installation is **6589090462**, defined only in `commands/setup.js`. For a buyer's copy, set the bot property `t4_setup_owner` to the buyer's Telegram ID from the trusted Bots.Business workspace before first use, or replace `INITIAL_OWNER_ID` in `setup.js`. An existing `t4_owner` takes precedence. A visitor cannot claim ownership simply by running /setup first. After setup, both app and input handlers use the persisted owner and additional admin IDs; they have no fallback administrator.
+
+Setup preserves existing balances, categories, orders, deposits, and additional admin IDs. Repeating `/setup` displays the completed state without reinitializing those records. The owner must open the bot to receive notifications.
+
+## Admin update
+
+- `/admin` and the inline button open the same panel after setup.
+- The main Admin Panel uses six rows of two buttons. Other menus pack available actions into rows of up to two; admin subpages include Back and Main Menu.
+- Admin item details use readable labels; deleted items are hidden from management lists and cannot be re-enabled through old buttons. Delete has a confirmation screen.
+- Deposit review includes View Proof, showing the saved Telegram photo.
+- Settings lets the owner change the store name and manage additional admins. Send `-` to remove all additional admins.
+- Main Menu and /admin clear pending form state. The reply handler rechecks setup and banned-user access.
 
 ## Current working flows
 
@@ -25,3 +38,7 @@ Admin creation inputs use a pipe `|` between fields; the bot shows the required 
 BJS bot properties and counters are not transactional. Concurrent order/payment callbacks and provider interactions need an atomic external ledger before high-volume, real-money operation. The local tests cover common single-user flows and repeated clicks, but the bot has not been exercised in your live Bots.Business workspace. Test with non-real funds before enabling a public deposit address.
 
 Offers support announcements or an optional 1–90% coupon code. Each user can redeem a given coupon once. Broadcast sends to at most 100 registered users in this version.
+
+## Local regression checks
+
+Run `node tests/flows.cjs`. This harness simulates BJS storage and routing: setup authorization, pre-setup mutation guards, repeated setup preserving data, direct and inline admin entry, two-column dashboard, additional admin permissions, delete confirmation, screenshot review, cancellation, catalog/order/deposit/coupon flows, repeated approvals and refunds. It does not simulate Telegram formatting, the live Bots.Business importer, concurrency, or delivery failures.
