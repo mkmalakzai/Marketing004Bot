@@ -54,7 +54,7 @@ if(!data||data.error||!data.order){
   o.status="API Failed";
   o.api_error=err;
   save("order_"+o.id,o);
-  Api.sendMessage({chat_id:o.user,text:"⚠️ Order "+o.id+" could not be sent to the provider. Your payment was refunded."});
+  Api.sendMessage({chat_id:o.user,text:"⚠️ ORDER FAILED\n\nOrder: "+o.id+"\nThe provider could not accept this order.\nRefund: Completed\nAmount returned: $"+(Number(o.price||0)/100).toFixed(2)+"\n\nYou can try again later or choose another service."});
   if(owner){Api.sendMessage({chat_id:owner,text:"⚠️ API order failed "+o.id+"\n"+err});}
   return;
 }
@@ -64,5 +64,5 @@ o.status="Processing";
 o.api_error="";
 save("order_"+o.id,o);
 
-Api.sendMessage({chat_id:o.user,text:"✅ Order "+o.id+" was accepted by the provider.\nStatus: Processing"});
-if(owner){Api.sendMessage({chat_id:owner,text:"⚡ API order sent "+o.id+"\nProvider Order: "+o.provider_order_id});}
+Api.sendMessage({chat_id:o.user,text:"✅ ORDER ACCEPTED\n\nOrder: "+o.id+"\nStatus: Processing\n\nYour order has been accepted by the provider and is now being processed."});
+if(owner){Api.sendMessage({chat_id:owner,text:"⚡ API ORDER SENT\n\nLocal Order: "+o.id+"\nProvider Order: "+o.provider_order_id+"\nStatus: Processing"});}
