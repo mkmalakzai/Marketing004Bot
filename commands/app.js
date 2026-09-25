@@ -67,7 +67,7 @@ function amount(text) {
   return null;
 }
 function safe(s) { return String(s || "").slice(0, 700); }
-function ask(kind, ref, label) { User.setProperty("t4_pending", JSON.stringify({ kind: kind, ref: ref }), "string"); var buttons=kind.indexOf("admin_")===0?[[{title:"◀ Admin Panel",command:"/admin"},{title:"✖ Cancel",command:"app home"}]]:row("✖ Cancel","home"); Bot.sendInlineKeyboard(buttons, escapeMarkdown(label) + "\n\nSend one text reply. /start cancels the step."); Bot.runCommand("input"); }
+function ask(kind, ref, label) { User.setProperty("t4_pending", JSON.stringify({ kind: kind, ref: ref }), "string"); var buttons=kind.indexOf("admin_")===0?[[{title:"◀ Admin Panel",command:"/admin"},{title:"✖ Cancel",command:"app home"}]]:row("✖ Cancel","home"); Bot.sendInlineKeyboard(buttons, escapeMarkdown(label) + "\n\nSend one text reply. /start cancels the step."); Bot.runCommand("input", { waitForAnswer: true }); }
 function belong(o) { return o && String(o.user) === uid; }
 function isUserId(v) {
   v=String(v||"");
