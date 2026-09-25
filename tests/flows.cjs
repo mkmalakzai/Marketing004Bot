@@ -103,3 +103,22 @@ assert.equal(JSON.parse(globalData.get('t4_cats')).length,2);
 current='123456789';bucket(current).set('t4_pending',JSON.stringify({kind:'deposit_amount',ref:'PAY-1'}));
 globalData.set('t4_ban_'+current,'yes');reply('20.00');assert(last().includes('restricted'));
 console.log('Setup, owner permissions, two-column dashboard, aliases, cancel, delete and proof checks passed');
+
+
+// Manual v1 completion checks.
+current='6589090462';
+run('app','admin_user 123456789');
+run('app','admin_wallet_add 123456789');reply('5.00');assert.equal(globalData.get('t4_wallet_123456789'),1050);
+run('app','admin_wallet_remove 123456789');reply('1.00');assert.equal(globalData.get('t4_wallet_123456789'),950);
+run('app','admin_find order');reply('ORD-2');assert(last().includes('ORD-2'));
+run('app','admin_order_note ORD-2');reply('Started manually');assert(JSON.parse(globalData.get('t4_order_ORD-2')).admin_note==='Started manually');
+run('app','admin_order_delivery ORD-2');reply('Delivered manually');assert(JSON.parse(globalData.get('t4_order_ORD-2')).delivery_result==='Delivered manually');
+current='123456789';
+globalData.set('t4_ban_'+current,'no');
+run('app','order ORD-2');assert(last().includes('Delivered manually'));
+run('app','order_cancel ORD-2');assert.equal(JSON.parse(globalData.get('t4_order_ORD-2')).status,'Cancelled');
+assert.equal(globalData.get('t4_wallet_123456789'),1400);
+current='6589090462';
+run('app','admin_ticket TKT-1');run('app','admin_ticket_toggle TKT-1');assert.equal(JSON.parse(globalData.get('t4_ticket_TKT-1')).status,'Closed');
+run('app','admin_ticket_toggle TKT-1');assert.equal(JSON.parse(globalData.get('t4_ticket_TKT-1')).status,'Open');
+console.log('Manual v1 admin wallet, search, delivery, cancel and ticket lifecycle checks passed');
