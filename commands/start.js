@@ -2,16 +2,14 @@
   command: /start
   help:
   need_reply: false
-  auto_retry_time:
   folder: CORE
-  aliases:
 CMD*/
-
-// Bots.Business command: /start
-if (User.getProperty("tpl004_initialized") !== true) {
-  User.setProperty("tpl004_initialized", true, "boolean");
-  User.setProperty("tpl004_joined_at", new Date().toISOString(), "string");
-  User.setProperty("tpl004_total_orders", 0, "integer");
-  User.setProperty("tpl004_total_spent_cents", 0, "integer");
+User.setProperty("t4_pending", "", "string");
+if (Bot.getProperty("t4_user_seen_" + user.telegramid) !== "yes") {
+  Bot.setProperty("t4_user_seen_" + user.telegramid, "yes", "string");
+  var users;
+  try { users = JSON.parse(Bot.getProperty("t4_users") || "[]"); } catch(e) { users = []; }
+  users.push(String(user.telegramid));
+  Bot.setProperty("t4_users", JSON.stringify(users), "string");
 }
-Bot.runCommand("main_menu");
+Bot.runCommand("app home");
