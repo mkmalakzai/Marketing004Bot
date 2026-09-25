@@ -23,8 +23,8 @@ Setup preserves existing balances, categories, orders, deposits, and additional 
 
 ## Current working flows
 
-- User: menu, catalog navigation, package and order preview, wallet, manual deposit request with photo, order history, transaction history, offers display, stats, support tickets and account.
-- Admin: category/service/package add/edit/disable/delete (soft delete), order management and refunds, payment method management, manual deposit review, offer and one-use coupon management, ticket replies, user ban/unban, additional admin IDs and basic broadcast (up to 100 registered users).
+- User: menu, catalog navigation, package and order preview, wallet, manual deposit request with photo, order history, transaction history, active-order cancellation with automatic refund, manual delivery/update visibility, offers display, stats, support tickets and account.
+- Admin: category/service/package add/edit/disable/delete (soft delete), order search and manual fulfillment notes/results, order status/refunds, payment method management, manual deposit review, record lookup by ID, user detail pages, balance credit/debit tools with ledger entries, offer and one-use coupon management, ticket reply/close/reopen, user ban/unban, additional admin IDs and basic broadcast (up to 100 registered users).
 - USD balances are stored in integer cents. Deposits credit only when an admin approves; orders debit once upon confirmation; refunds credit once. Repeated button presses on completed actions are ignored.
 - The BOTBOX credit appears only in My Account.
 
@@ -37,7 +37,7 @@ Admin creation inputs use a pipe `|` between fields; the bot shows the required 
 
 BJS bot properties and counters are not transactional. Concurrent order/payment callbacks and provider interactions need an atomic external ledger before high-volume, real-money operation. The local tests cover common single-user flows and repeated clicks, but the bot has not been exercised in your live Bots.Business workspace. Test with non-real funds before enabling a public deposit address.
 
-Offers support announcements or an optional 1–90% coupon code. Each user can redeem a given coupon once. Broadcast sends to at most 100 registered users in this version.
+Offers support announcements or an optional 1–90% coupon code. Each user can redeem a given coupon once. Broadcast sends to at most 100 registered users in this version. New order/deposit/ticket alerts are sent to the owner and configured additional admins; the deposit proof photo is sent to the owner and remains viewable from the admin deposit page.
 
 ## Local regression checks
 
