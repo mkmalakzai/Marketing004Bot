@@ -1,3 +1,12 @@
+/*CMD
+  command: /start
+  help:
+  need_reply: false
+  auto_retry_time:
+  folder: CORE
+  aliases:
+CMD*/
+
 // Bots.Business command: /start
 if (User.getProperty("tpl004_initialized") !== true) {
   User.setProperty("tpl004_initialized", true, "boolean");
