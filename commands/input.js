@@ -32,6 +32,14 @@ if(state.kind==="order"){
   User.setProperty("t4_order_draft",JSON.stringify({pkg:p.id,details:value}),"string");
   Bot.runCommand("app order_preview");return;
 }
+if(state.kind==="coupon"){
+  var draft;try{draft=JSON.parse(User.getProperty("t4_order_draft"));}catch(e){draft=null;}
+  if(!draft){fail("Open a package and start an order first.");return;}
+  var ids=list("offers"),found=null;
+  for(var i=0;i<ids.length;i++){var offer=read("offer_"+ids[i]);if(offer&&offer.active&&offer.percent&&offer.code===value.toUpperCase()){found=offer;break;}}
+  if(!found||get("coupon_used_"+found.id+"_"+uid,"no")==="yes"){fail("Invalid or already-used coupon. Open the order preview to continue.");return;}
+  draft.offer=found.id;User.setProperty("t4_order_draft",JSON.stringify(draft),"string");Bot.runCommand("app order_preview");return;
+}
 if(state.kind==="deposit_amount"){
   var m=read("method_"+state.ref),c=money(value);
   if(!m||!m.active||!c){fail("Invalid amount or disabled payment method. Start again from Add Funds.");return;}
@@ -99,7 +107,13 @@ if(state.kind==="admin_add"||state.kind==="admin_edit"){
     if(f.length!==2||!f[0]||!f[1]){fail("Use: payment method name | address/instructions.");return;}
     x.name=f[0].slice(0,60);x.address=f[1].slice(0,400);
   }else if(type==="offer"){
-    if(f.length!==2||!f[0]||!f[1]){fail("Use: title | description.");return;}
+    if((f.length!==2&&f.length!==4)||!f[0]||!f[1]){fail("Use: title | description, or title | description | CODE | percent.");return;}
+    if(f.length===4){
+      var code=f[2].toUpperCase(),pct=Number(f[3]);
+      if(!/^[A-Z0-9]{3,20}$/.test(code)||!Number.isInteger(pct)||pct<1||pct>90){fail("Code needs 3–20 letters/numbers; percent needs 1–90.");return;}
+      var allOffers=list("offers");for(var j=0;j<allOffers.length;j++){var prev=read("offer_"+allOffers[j]);if(prev&&prev.code===code&&(!editing||prev.id!==old.id)){fail("Coupon code already exists.");return;}}
+      x.code=code;x.percent=pct;
+    }else {x.code="";x.percent=0;}
     x.title=f[0].slice(0,60);x.description=f[1].slice(0,400);
   }else return;
   if(!editing){
