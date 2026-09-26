@@ -26,30 +26,33 @@ function save(k, v) { put(k, JSON.stringify(v)); }
 function key(type, n) { return type + "_" + n; }
 function newId(type) { var n = Number(get("seq_" + type, 0)) + 1; put("seq_" + type, n); return type + "-" + n; }
 function row(title, command) { return [{ title: title, command: "app " + command }]; }
+function navRow(title, command) { return [{ title: title, command: "app " + command }]; }
+function bold(label,value){return "*" + label + ":* " + String(value===undefined||value===null?"—":value);}
 function pairButtons(buttons) {
-  var rows = [], singles = [], i, j;
-  for (i = 0; i < buttons.length; i++) {
-    if (buttons[i] && buttons[i].length > 1) {
-      if (singles.length) {
-        for (j = 0; j < singles.length; j += 2) { rows.push(singles.slice(j, j + 2)); }
-        singles = [];
-      }
-      rows.push(buttons[i]);
-    } else if (buttons[i] && buttons[i].length === 1) {
-      singles.push(buttons[i][0]);
+  var rows = [], singles = [], i, j, b, title;
+  function flush(){
+    if(singles.length){
+      for(j=0;j<singles.length;j+=2){rows.push(singles.slice(j,j+2));}
+      singles=[];
     }
   }
-  if (singles.length) {
-    for (j = 0; j < singles.length; j += 2) { rows.push(singles.slice(j, j + 2)); }
+  for(i=0;i<buttons.length;i++){
+    if(!buttons[i]||!buttons[i].length){continue;}
+    if(buttons[i].length>1){flush();rows.push(buttons[i]);continue;}
+    b=buttons[i][0];title=String(b.title||"");
+    if(title.indexOf("🏠 Main Menu")===0||title.indexOf("◀")===0||title.indexOf("⬅")===0){
+      flush();rows.push([b]);
+    }else{singles.push(b);}
   }
+  flush();
   return rows;
 }
 function escapeMarkdown(value) {
   return String(value || "");
 }
 function show(title, lines, buttons) {
-  if (action.indexOf("admin_") === 0) { buttons.push(row("◀ Admin Panel", "admin")); }
-  buttons.push(row("🏠 Main Menu", "home"));
+  if (action.indexOf("admin_") === 0) { buttons.push(navRow("◀ Admin Panel", "admin")); }
+  buttons.push(navRow("🏠 Main Menu", "home"));
   Bot.sendInlineKeyboard(pairButtons(buttons), "*" + escapeMarkdown(title) + "*\n\n" + escapeMarkdown(lines));
 }
 function money(c) { return "$" + (Number(c || 0) / 100).toFixed(2); }
@@ -121,7 +124,7 @@ if (action === "home") {
   Bot.sendInlineKeyboard(pairButtons(b), "🏠 *" + escapeMarkdown(get("store_name", "MARKETING & PROMOTION")) + "*\n\nWelcome. Choose what you want to do."); return;
 }
 if (action === "account") {
-  show("👤 MY ACCOUNT", "User ID: " + uid + "\nOrders: " + list("user_orders_" + uid).length + "\nBalance: " + money(wallet(uid)) + "\n\nPowered by BOTBOX • @BotboxOfficial", []); return;
+  show("👤 MY ACCOUNT", bold("User ID",uid)+"\n"+bold("Orders",list("user_orders_"+uid).length)+"\n"+bold("Balance",money(wallet(uid)))+"\n\n*Powered by BOTBOX* • @BotboxOfficial", []); return;
 }
 if (action === "services") {
   var cats = list("cats"), buttons = [];
@@ -143,7 +146,7 @@ if (action === "service") {
 if (action === "package") {
   var p=obj(key("pkg",id)), s=p && obj(key("srv",p.srv)); if(!p || !p.active || !s || !s.active){ Bot.runCommand("app services"); return; }
   var qline=p.mode==="api"&&p.quantity?"\nQuantity: "+p.quantity:"";
-  show("📦 "+p.name,"Price: "+money(p.price)+"\nDelivery: "+safe(p.delivery)+"\nRequired: "+safe(p.requirement)+"\nMode: "+p.mode+qline+"\n\n"+safe(p.description),[row("🛒 Continue","order_input "+p.id),row("◀ Service","service "+p.srv)]); return;
+  show("📦 "+p.name,bold("Price",money(p.price))+"\n"+bold("Delivery",safe(p.delivery))+"\n"+bold("Required",safe(p.requirement))+"\n"+bold("Mode",p.mode)+qline+"\n\n"+safe(p.description),[[{title:"🛒 Continue",command:"app order_input "+p.id}],navRow("◀ Service","service "+p.srv)]); return;
 }
 if (action === "order_input") { var p=obj(key("pkg",id)); if(!p || !p.active){Bot.runCommand("app services");return;} ask("order",id,"Send the required link/details for " + p.name + ": " + p.requirement); return; }
 if (action === "order_preview") {
@@ -191,7 +194,7 @@ if (action === "my_orders") {
 }
 if (action === "order") { var o=obj(key("order",id)); if(!belong(o) && !admin){Bot.runCommand("app home");return;} var olines=o.name+"\n\nStatus: "+o.status+"\nTotal: "+money(o.price)+"\nOrder details: "+safe(o.details); if(o.admin_note)olines+="\n\nUpdate: "+safe(o.admin_note); if(o.delivery_result)olines+="\nDelivery: "+safe(o.delivery_result); if(o.provider_order_id)olines+="\nProvider Order: "+o.provider_order_id; if(o.api_refunded)olines+="\nRefund: Completed"; var ob=admin?[row("🛠 Manage","admin_order "+id)]:[row("◀ My Orders","my_orders")]; if(!admin&&(o.status==="Pending"||o.status==="Processing")&&!o.provider_order_id&&o.mode!=="api")ob.unshift(row("❌ Cancel & Refund","order_cancel "+id)); show("📦 "+o.id,olines,ob);return; }
 if (action === "order_cancel") { var o=obj(key("order",id)); if(!belong(o)||["Pending","Processing"].indexOf(o.status)<0||o.provider_order_id){Bot.runCommand("app my_orders");return;} o.status="Cancelled";o.cancelled_by="user";o.cancelled_at=new Date().toISOString();save(key("order",id),o);setWallet(uid,wallet(uid)+o.price,"Order Cancel",id,o.price);notifyAdmins("❌ Order cancelled by user "+id+"\nUser: "+uid+"\nRefunded: "+money(o.price));show("✅ ORDER CANCELLED",id+"\nRefunded: "+money(o.price),[row("📦 My Orders","my_orders")]);return; }
-if (action === "balance") { var b=[[{title:"➕ Add Funds",command:"app deposit_methods"},{title:"🧾 Transactions",command:"app ledger"}],row("📨 My Deposits","my_deposits")];show("💰 YOUR BALANCE","Available balance: "+money(wallet(uid))+" USD\n\nUse Add Funds to submit a deposit or open Transactions to review activity.",b);return; }
+if (action === "balance") { var b=[[{title:"➕ Add Funds",command:"app deposit_methods"},{title:"🧾 Transactions",command:"app ledger"}],row("📨 My Deposits","my_deposits")];show("💰 YOUR BALANCE",bold("Available balance",money(wallet(uid))+" USD")+"\n\nUse Add Funds to submit a deposit or open Transactions to review activity.",b);return; }
 if (action === "my_deposits") {var ids=list("user_deposits_"+uid),b=[];for(var i=0;i<ids.length&&i<15;i++){var d=obj(key("deposit",ids[i]));if(d)b.push(row(d.id+" • "+d.status+" • "+money(d.amount),"my_deposit "+d.id));}show("📨 MY DEPOSITS",b.length?"Latest 15 requests.":"No deposits yet.",b);return;}
 if (action === "my_deposit") {var d=obj(key("deposit",id));if(!belong(d)){Bot.runCommand("app balance");return;}show("💳 "+d.id,"Amount: "+money(d.amount)+"\nMethod: "+d.method+"\nStatus: "+d.status,[row("◀ My Deposits","my_deposits")]);return;}
 if (action === "ledger") {var a=list("ledger_"+uid), lines=[],seenRefund={};for(var i=0;i<a.length && lines.length<10;i++){var e=a[i],amt=Number(e.cents||0),label=e.type||"Transaction";if((label==="Refund"||label==="API Refund")&&seenRefund[e.ref])continue;if(label==="Refund"||label==="API Refund")seenRefund[e.ref]=true;var sign=amt>=0?"+":"-";lines.push(sign+"$"+(Math.abs(amt)/100).toFixed(2)+" • "+label+" • "+e.ref);}show("🧾 TRANSACTIONS",lines.join("\n")||"No transactions yet.",[row("◀ Balance","balance")]);return;}
@@ -199,13 +202,31 @@ if (action === "deposit_methods") {var ids=list("methods"),b=[];for(var i=0;i<id
 if (action === "deposit") {var m=obj(key("method",id));if(!m||!m.active){Bot.runCommand("app deposit_methods");return;}show("💳 "+m.name,"Address / instructions:\n"+m.address+"\n\nPay first, then submit the exact amount and screenshot. Only the admin can approve it.",[row("✅ I Have Paid","deposit_amount "+id)]);return;}
 if (action === "deposit_amount") {var m=obj(key("method",id));if(!m||!m.active){Bot.runCommand("app deposit_methods");return;}ask("deposit_amount",id,"Enter amount in USD, e.g. 10.50");return;}
 if (action === "offers") {var ids=list("offers"),lines=[];for(var i=0;i<ids.length;i++){var o=obj(key("offer",ids[i]));if(o&&o.active)lines.push("🎁 "+o.title+"\n"+o.description+(o.percent?"\nCode: "+o.code+" ("+o.percent+"% off, once per user)":""));}show("🎁 OFFERS",lines.join("\n\n")||"No active offers.",[]);return;}
-if (action === "stats") {var ids=list("user_orders_"+uid),spent=0,done=0;for(var i=0;i<ids.length;i++){var o=obj(key("order",ids[i]));if(o&&o.status!=="Refunded"){spent+=o.price;if(o.status==="Completed")done++;}}show("📊 MY STATS","Orders: "+ids.length+"\nCompleted: "+done+"\nTotal spent: "+money(spent),[]);return;}
+if (action === "stats") {var ids=list("user_orders_"+uid),spent=0,done=0;for(var i=0;i<ids.length;i++){var o=obj(key("order",ids[i]));if(o&&o.status!=="Refunded"){spent+=o.price;if(o.status==="Completed")done++;}}show("📊 MY STATS",bold("Orders",ids.length)+"\n"+bold("Completed",done)+"\n"+bold("Total spent",money(spent)),[]);return;}
 if (action === "support") {show("🎫 SUPPORT","Need help with an order, payment, or account? Send us a support ticket and the team can reply here.",[[{title:"✍ New Ticket",command:"app ticket_input"},{title:"📨 My Tickets",command:"app tickets"}]]);return;}
 if (action === "ticket_input") {ask("ticket","","Describe your issue in one message.");return;}
 if (action === "tickets") {var ids=list("user_tickets_"+uid),b=[];for(var i=0;i<ids.length&&i<15;i++){var t=obj(key("ticket",ids[i]));if(t)b.push(row(t.id+" • "+t.status,"ticket "+t.id));}show("📨 MY TICKETS",b.length?"Choose a ticket.":"No tickets yet.",b);return;}
 if (action === "ticket") {var t=obj(key("ticket",id));if(!belong(t)&&!admin){Bot.runCommand("app home");return;}show("🎫 "+t.id,"Status: "+t.status+"\nMessage: "+safe(t.message)+"\nReply: "+safe(t.reply||"—"),admin?[row("↩ Reply","admin_ticket_reply "+id)]:[row("◀ Tickets","tickets")]);return;}
 if (!admin) {show("🔒 ADMIN ACCESS","This area is available to authorized admins only.",[]);return;}
-if (action === "admin") {show("🛠 ADMIN PANEL","Users: "+list("users").length+"\nOrders: "+list("orders").length+"\nDeposits: "+list("deposits").length+"\nTickets: "+list("tickets").length+"\nProviders: "+list("providers").length,[row("📁 Categories","admin_cats"),row("🚀 Services","admin_services"),row("📦 Packages","admin_packages"),row("🔌 SMM Providers","admin_providers"),row("🛒 Orders","admin_orders"),row("💳 Deposits","admin_deposits"),row("💰 Payment Methods","admin_methods"),row("🎁 Offers","admin_offers"),row("🎫 Tickets","admin_tickets"),row("👥 Users","admin_users"),row("💵 Wallet Tools","admin_wallet"),row("📢 Broadcast","admin_broadcast"),row("⚙ Settings","admin_settings")]);return;}
+if (action === "admin") {show("🛠 ADMIN PANEL","Users: "+list("users").length+"\nOrders: "+list("orders").length+"\nDeposits: "+list("deposits").length+"\nTickets: "+list("tickets").length+"\nProviders: "+list("providers").length,[row("📁 Categories","admin_cats"),row("🚀 Services","admin_services"),row("📦 Packages","admin_packages"),row("🔌 SMM Providers","admin_providers"),row("🛒 Orders","admin_orders"),row("💳 Deposits","admin_deposits"),row("💰 Payment Methods","admin_methods"),row("🎁 Offers","admin_offers"),row("🎫 Tickets","admin_tickets"),row("👥 Users","admin_users"),row("💵 Wallet Tools","admin_wallet"),row("📢 Broadcast","admin_broadcast"),row("⚙ Settings","admin_settings"),row("📘 Documentation","admin_docs")]);return;}
+
+
+if(action==="admin_docs"){
+  var doc="*ADMIN DOCUMENTATION*\n\n"+
+  "> *Catalog*\n"+
+  "> Categories organize services. Services contain packages. Packages can be Manual or API.\n\n"+
+  "> *Manual Orders*\n"+
+  "> Admin reviews the order, moves it to Processing, adds notes/delivery result, then marks it Completed or Refunded.\n\n"+
+  "> *API Orders*\n"+
+  "> Add an SMM Provider, save a Provider Service ID, then create an API package linked to that service. API failures refund automatically. Successful provider orders can be refreshed from the order page.\n\n"+
+  "> *Wallet & Deposits*\n"+
+  "> Deposits remain Pending until admin approval. Wallet tools can credit/debit a known user and every change is written to Transactions.\n\n"+
+  "> *Users & Support*\n"+
+  "> Search users, review their orders/deposits, ban/unban accounts, and answer support tickets.\n\n"+
+  "> *Safety*\n"+
+  "> Keep provider API keys private. Test new services with small values before public use.";
+  Bot.sendInlineKeyboard([[{title:"◀ Admin Panel",command:"app admin"}],[{title:"🏠 Main Menu",command:"app home"}]],doc);return;
+}
 
 if(action==="admin_providers"){
   var ids=list("providers"),b=[row("➕ Add Provider","admin_provider_add")];
@@ -394,6 +415,6 @@ if (action === "admin_deposit_status") {var d=obj(key("deposit",id)),status=args
 if (action === "admin_ticket") {var t=obj(key("ticket",id));if(!t)return;var b=[row("↩ Reply","admin_ticket_reply "+id),row(t.status==="Closed"?"🔓 Reopen":"✅ Close","admin_ticket_toggle "+id),row("👤 User","admin_user "+t.user)];show("🎫 "+id,"User: "+t.user+"\nMessage: "+safe(t.message)+"\nStatus: "+t.status+"\nReply: "+safe(t.reply||"—"),b);return;}
 if(action==="admin_ticket_toggle"){var t=obj(key("ticket",id));if(!t)return;t.status=t.status==="Closed"?"Open":"Closed";save(key("ticket",id),t);notify(t.user,"🎫 Ticket "+id+" is now "+t.status+".");Bot.runCommand("app admin_ticket "+id);return;}
 if (action === "admin_ticket_reply") {if(!obj(key("ticket",id)))return;ask("admin_reply",id,"Send the reply for ticket "+id);return;}
-if (action === "admin_settings") {show("⚙ SETTINGS","Store: "+get("store_name","MARKETING & PROMOTION")+"\nOwner: "+owner+"\nAdditional admins: "+(get("admins","")||"—")+"\nSetup: Complete\nCurrency: USD\nFulfillment: Manual + API-ready",uid===owner?[row("👥 Manage Admins","admin_setting admins"),row("✏ Store Name","admin_setting store_name")]:[]);return;}
+if (action === "admin_settings") {show("⚙ SETTINGS",bold("Store",get("store_name","MARKETING & PROMOTION"))+"\n"+bold("Owner",owner)+"\n"+bold("Additional admins",(get("admins","")||"—"))+"\n"+bold("Setup","Complete")+"\n"+bold("Currency","USD")+"\n"+bold("Fulfillment","Manual + API"),uid===owner?[row("👥 Manage Admins","admin_setting admins"),row("✏ Store Name","admin_setting store_name")]:[]);return;}
 if (action === "admin_setting") {if(uid!==owner||["admins","store_name"].indexOf(id)<0)return;ask("admin_setting",id,id==="admins"?"Send comma-separated Telegram IDs, or - to remove all additional admins.":"Send the store name (2–60 characters).");return;}
 Bot.runCommand("app home");
