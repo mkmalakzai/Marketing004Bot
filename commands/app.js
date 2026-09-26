@@ -27,11 +27,21 @@ function key(type, n) { return type + "_" + n; }
 function newId(type) { var n = Number(get("seq_" + type, 0)) + 1; put("seq_" + type, n); return type + "-" + n; }
 function row(title, command) { return [{ title: title, command: "app " + command }]; }
 function pairButtons(buttons) {
-  var flat = [], rows = [];
-  for (var i = 0; i < buttons.length; i++) {
-    for (var j = 0; j < buttons[i].length; j++) { flat.push(buttons[i][j]); }
+  var rows = [], singles = [], i, j;
+  for (i = 0; i < buttons.length; i++) {
+    if (buttons[i] && buttons[i].length > 1) {
+      if (singles.length) {
+        for (j = 0; j < singles.length; j += 2) { rows.push(singles.slice(j, j + 2)); }
+        singles = [];
+      }
+      rows.push(buttons[i]);
+    } else if (buttons[i] && buttons[i].length === 1) {
+      singles.push(buttons[i][0]);
+    }
   }
-  for (var k = 0; k < flat.length; k += 2) { rows.push(flat.slice(k, k + 2)); }
+  if (singles.length) {
+    for (j = 0; j < singles.length; j += 2) { rows.push(singles.slice(j, j + 2)); }
+  }
   return rows;
 }
 function escapeMarkdown(value) {
@@ -181,16 +191,16 @@ if (action === "my_orders") {
 }
 if (action === "order") { var o=obj(key("order",id)); if(!belong(o) && !admin){Bot.runCommand("app home");return;} var olines=o.name+"\n\nStatus: "+o.status+"\nTotal: "+money(o.price)+"\nOrder details: "+safe(o.details); if(o.admin_note)olines+="\n\nUpdate: "+safe(o.admin_note); if(o.delivery_result)olines+="\nDelivery: "+safe(o.delivery_result); if(o.provider_order_id)olines+="\nProvider Order: "+o.provider_order_id; if(o.api_refunded)olines+="\nRefund: Completed"; var ob=admin?[row("🛠 Manage","admin_order "+id)]:[row("◀ My Orders","my_orders")]; if(!admin&&(o.status==="Pending"||o.status==="Processing")&&!o.provider_order_id&&o.mode!=="api")ob.unshift(row("❌ Cancel & Refund","order_cancel "+id)); show("📦 "+o.id,olines,ob);return; }
 if (action === "order_cancel") { var o=obj(key("order",id)); if(!belong(o)||["Pending","Processing"].indexOf(o.status)<0||o.provider_order_id){Bot.runCommand("app my_orders");return;} o.status="Cancelled";o.cancelled_by="user";o.cancelled_at=new Date().toISOString();save(key("order",id),o);setWallet(uid,wallet(uid)+o.price,"Order Cancel",id,o.price);notifyAdmins("❌ Order cancelled by user "+id+"\nUser: "+uid+"\nRefunded: "+money(o.price));show("✅ ORDER CANCELLED",id+"\nRefunded: "+money(o.price),[row("📦 My Orders","my_orders")]);return; }
-if (action === "balance") { var b=[row("➕ Add Funds","deposit_methods"),row("🧾 Transactions","ledger"),row("📨 My Deposits","my_deposits")];show("💰 YOUR BALANCE","Available balance: "+money(wallet(uid))+" USD\n\nUse Add Funds to submit a deposit or open Transactions to review activity.",b);return; }
+if (action === "balance") { var b=[[{title:"➕ Add Funds",command:"app deposit_methods"},{title:"🧾 Transactions",command:"app ledger"}],row("📨 My Deposits","my_deposits")];show("💰 YOUR BALANCE","Available balance: "+money(wallet(uid))+" USD\n\nUse Add Funds to submit a deposit or open Transactions to review activity.",b);return; }
 if (action === "my_deposits") {var ids=list("user_deposits_"+uid),b=[];for(var i=0;i<ids.length&&i<15;i++){var d=obj(key("deposit",ids[i]));if(d)b.push(row(d.id+" • "+d.status+" • "+money(d.amount),"my_deposit "+d.id));}show("📨 MY DEPOSITS",b.length?"Latest 15 requests.":"No deposits yet.",b);return;}
 if (action === "my_deposit") {var d=obj(key("deposit",id));if(!belong(d)){Bot.runCommand("app balance");return;}show("💳 "+d.id,"Amount: "+money(d.amount)+"\nMethod: "+d.method+"\nStatus: "+d.status,[row("◀ My Deposits","my_deposits")]);return;}
-if (action === "ledger") {var a=list("ledger_"+uid), lines=[];for(var i=0;i<a.length && i<10;i++)lines.push((a[i].cents>=0?"+":"")+money(a[i].cents)+" • "+a[i].type+" • "+a[i].ref);show("🧾 TRANSACTIONS",lines.join("\n")||"No transactions yet.",[row("◀ Balance","balance")]);return;}
+if (action === "ledger") {var a=list("ledger_"+uid), lines=[],seenRefund={};for(var i=0;i<a.length && lines.length<10;i++){var e=a[i],amt=Number(e.cents||0),label=e.type||"Transaction";if((label==="Refund"||label==="API Refund")&&seenRefund[e.ref])continue;if(label==="Refund"||label==="API Refund")seenRefund[e.ref]=true;var sign=amt>=0?"+":"-";lines.push(sign+"$"+(Math.abs(amt)/100).toFixed(2)+" • "+label+" • "+e.ref);}show("🧾 TRANSACTIONS",lines.join("\n")||"No transactions yet.",[row("◀ Balance","balance")]);return;}
 if (action === "deposit_methods") {var ids=list("methods"),b=[];for(var i=0;i<ids.length;i++){var m=obj(key("method",ids[i]));if(m&&m.active)b.push(row(m.name,"deposit "+m.id));}show("➕ ADD FUNDS",b.length?"Choose a method.":"No deposit methods enabled.",b);return;}
 if (action === "deposit") {var m=obj(key("method",id));if(!m||!m.active){Bot.runCommand("app deposit_methods");return;}show("💳 "+m.name,"Address / instructions:\n"+m.address+"\n\nPay first, then submit the exact amount and screenshot. Only the admin can approve it.",[row("✅ I Have Paid","deposit_amount "+id)]);return;}
 if (action === "deposit_amount") {var m=obj(key("method",id));if(!m||!m.active){Bot.runCommand("app deposit_methods");return;}ask("deposit_amount",id,"Enter amount in USD, e.g. 10.50");return;}
 if (action === "offers") {var ids=list("offers"),lines=[];for(var i=0;i<ids.length;i++){var o=obj(key("offer",ids[i]));if(o&&o.active)lines.push("🎁 "+o.title+"\n"+o.description+(o.percent?"\nCode: "+o.code+" ("+o.percent+"% off, once per user)":""));}show("🎁 OFFERS",lines.join("\n\n")||"No active offers.",[]);return;}
 if (action === "stats") {var ids=list("user_orders_"+uid),spent=0,done=0;for(var i=0;i<ids.length;i++){var o=obj(key("order",ids[i]));if(o&&o.status!=="Refunded"){spent+=o.price;if(o.status==="Completed")done++;}}show("📊 MY STATS","Orders: "+ids.length+"\nCompleted: "+done+"\nTotal spent: "+money(spent),[]);return;}
-if (action === "support") {show("🎫 SUPPORT","Need help with an order, payment, or account? Send us a support ticket and the team can reply here.",[row("✍ New Ticket","ticket_input"),row("📨 My Tickets","tickets")]);return;}
+if (action === "support") {show("🎫 SUPPORT","Need help with an order, payment, or account? Send us a support ticket and the team can reply here.",[[{title:"✍ New Ticket",command:"app ticket_input"},{title:"📨 My Tickets",command:"app tickets"}]]);return;}
 if (action === "ticket_input") {ask("ticket","","Describe your issue in one message.");return;}
 if (action === "tickets") {var ids=list("user_tickets_"+uid),b=[];for(var i=0;i<ids.length&&i<15;i++){var t=obj(key("ticket",ids[i]));if(t)b.push(row(t.id+" • "+t.status,"ticket "+t.id));}show("📨 MY TICKETS",b.length?"Choose a ticket.":"No tickets yet.",b);return;}
 if (action === "ticket") {var t=obj(key("ticket",id));if(!belong(t)&&!admin){Bot.runCommand("app home");return;}show("🎫 "+t.id,"Status: "+t.status+"\nMessage: "+safe(t.message)+"\nReply: "+safe(t.reply||"—"),admin?[row("↩ Reply","admin_ticket_reply "+id)]:[row("◀ Tickets","tickets")]);return;}
@@ -214,7 +224,7 @@ if(action==="admin_provider"){
   var p=obj(key("provider",id));if(!p||p.deleted){Bot.runCommand("app admin_providers");return;}
   var masked=p.api_key?"••••••"+String(p.api_key).slice(-4):"—";
   var text="Name: "+p.name+"\nStatus: "+(p.active?"Enabled":"Disabled")+"\nAPI URL: "+p.api_url+"\nAPI Key: "+masked+"\nType: "+(p.type||"SMM API");
-  show("🔌 "+p.id,text,[row("🧪 Test Connection","admin_provider_test "+p.id),row("💰 Check Balance","admin_provider_balance "+p.id),row("🔎 Add Service by ID","admin_provider_service_add "+p.id),row(p.active?"⛔ Disable":"✅ Enable","admin_provider_toggle "+p.id),row("✏ Edit","admin_provider_edit "+p.id),row("🗑 Delete","admin_provider_delete "+p.id),row("◀ Providers","admin_providers")]);return;
+  show("🔌 "+p.id,text,[[{title:"🧪 Test Connection",command:"app admin_provider_test "+p.id},{title:"💰 Check Balance",command:"app admin_provider_balance "+p.id}],[{title:"🔎 Add Service by ID",command:"app admin_provider_service_add "+p.id},{title:(p.active?"⛔ Disable":"✅ Enable"),command:"app admin_provider_toggle "+p.id}],[{title:"✏ Edit",command:"app admin_provider_edit "+p.id},{title:"🗑 Delete",command:"app admin_provider_delete "+p.id}],row("◀ Providers","admin_providers")]);return;
 }
 
 if(action==="admin_provider_test"||action==="admin_provider_balance"){
